@@ -1,0 +1,198 @@
+# ==========================================
+# 🔐 SEGREDOS E TOKENS - NUNCA COMMITAR!
+# ==========================================
+
+# Arquivos de ambiente (contêm tokens)
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Credenciais do Firebase
+firebase-service-account.json
+**/firebase-service-account.json
+
+# Chaves privadas
+*.pem
+*.key
+*.keystore
+
+# ==========================================
+# 📁 IDE & EDITOR
+# ==========================================
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+*.idea
+out/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Sublime
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+.swp
+.swo
+*~
+.vim/
+
+# ==========================================
+# 🐍 PYTHON
+# ==========================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Permitir lib do frontend (necessária para build/deploy)
+!Frontend/src/lib/
+!Frontend/src/lib/**
+
+# ==========================================
+# 📦 NODE & NPM
+# ==========================================
+
+node_modules/
+npm-debug.log
+npm-debug.log.*
+yarn-error.log
+yarn-debug.log
+.npm/
+package-lock.json
+yarn.lock
+
+# ==========================================
+# 🏗️ JAVA & MAVEN
+# ==========================================
+
+target/
+.classpath
+.project
+.settings/
+bin/
+.gradle/
+build/
+*.jar
+*.war
+*.ear
+.DS_Store
+local.properties
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+
+# ==========================================
+# 🔨 BUILD
+# ==========================================
+
+dist/
+build/
+out/
+.next/
+.nuxt/
+coverage/
+.nyc_output/
+
+# ==========================================
+# 📊 DATABASE
+# ==========================================
+
+*.db
+*.sqlite
+*.sqlite3
+database.yml
+dump.rdb
+
+# ==========================================
+# 📝 LOGS
+# ==========================================
+
+logs/
+*.log
+[Ll]og/
+[Ll]ogs/
+
+# ==========================================
+# 🖥️ OS
+# ==========================================
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.lnk
+
+# Windows shortcuts
+*.lnk
+
+# ==========================================
+# 🔄 GIT
+# ==========================================
+
+.git/
+.gitignore
+.gitattributes
+
+# ==========================================
+# 📦 PACKAGES
+# ==========================================
+
+# Ruby
+Gemfile.lock
+vendor/
+
+# PHP
+vendor/
+composer.lock
+
+# Go
+go.sum
+
+# ==========================================
+# 🔌 VSCODE EXTENSIONS
+# ==========================================
+
+extensions/
+.vscode/extensions/
+
+# ==========================================
+# 📸 TEMPORÁRIOS
+# ==========================================
+
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+*.orig

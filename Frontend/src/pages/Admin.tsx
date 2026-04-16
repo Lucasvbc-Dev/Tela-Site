@@ -12,8 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShieldCheck, RefreshCw, Package } from "lucide-react";
+import { ShieldCheck, RefreshCw, Package, RotateCcw } from "lucide-react";
 import { supabaseStoreService } from "@/services/supabaseStoreService";
+import { pagamentoService } from "@/services/pagamentoService";
+import { useToast } from "@/hooks/use-toast";
 
 /* =========================
    🔹 NOVO: types alinhados com o backend
@@ -34,12 +36,15 @@ type Pedido = {
   itens: ItemPedido[];
   total: number;
   status: string;
+  transactionId?: string;
+  paymentStatus?: string;
   createdAt: string;
 };
 
 const Admin = () => {
   const { usuario } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +79,41 @@ const Admin = () => {
       fetchPedidos(); // 🔹 recarrega lista
     } catch (error) {
       console.error("Erro ao atualizar status", error);
+    }
+  };
+
+  const reembolsarPedido = async (pedido: Pedido) => {
+    if (!pedido.transactionId) {
+      toast({
+        title: "Pagamento sem transação",
+        description: "Não foi encontrado um ID de pagamento para este pedido.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!window.confirm(`Reembolsar o pedido ${pedido.id}?`)) {
+      return;
+    }
+
+    try {
+      await pagamentoService.reembolsarPagamento(pedido.transactionId);
+      await supabaseStoreService.atualizarStatusPedidoEPagamento({
+        pedidoId: pedido.id,
+        status: "CANCELADO",
+        transactionId: pedido.transactionId,
+      });
+      toast({
+        title: "Reembolso solicitado",
+        description: "O pagamento foi processado e o pedido foi cancelado.",
+      });
+      fetchPedidos();
+    } catch (error: any) {
+      toast({
+        title: "Falha ao reembolsar",
+        description: error?.message || "Não foi possível reembolsar este pedido.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -138,19 +178,20 @@ const Admin = () => {
                     <TableHead>Status</TableHead>
 
                     <TableHead>Endereço</TableHead>
+                        <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
                   {loading && pedidos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-16">
+                      <TableCell colSpan={7} className="text-center py-16">
                         Carregando pedidos...
                       </TableCell>
                     </TableRow>
                   ) : pedidos.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-16">
+                      <TableCell colSpan={7} className="text-center py-16">
                         Nenhum pedido registrado.
                       </TableCell>
                     </TableRow>
@@ -214,18 +255,31 @@ const Admin = () => {
                         </TableCell>
 
                         <TableCell>
-                          <select
-                            value={pedido.status}
-                            onChange={(e) => {
-                              atualizarStatus(pedido.id, e.target.value);
-                            }}
-                            className="border px-2 py-1 text-xs uppercase"
-                          >
-                            <option value="PENDENTE">Pendente</option>
-                            <option value="ENVIADO">Enviado</option>
-                            <option value="ENTREGUE">Entregue</option>
-                            <option value="CANCELADO">Cancelado</option>
-                          </select>
+                          <div className="flex flex-col gap-3">
+                            <select
+                              value={pedido.status}
+                              onChange={(e) => {
+                                atualizarStatus(pedido.id, e.target.value);
+                              }}
+                              className="border px-2 py-1 text-xs uppercase"
+                            >
+                              <option value="PENDENTE">Pendente</option>
+                              <option value="ENVIADO">Enviado</option>
+                              <option value="ENTREGUE">Entregue</option>
+                              <option value="CANCELADO">Cancelado</option>
+                            </select>
+
+                            {(pedido.paymentStatus || pedido.status) === "PAGO" && pedido.transactionId && (
+                              <button
+                                type="button"
+                                onClick={() => void reembolsarPedido(pedido)}
+                                className="inline-flex items-center justify-center gap-2 border px-3 py-2 text-xs uppercase tracking-wider"
+                              >
+                                <RotateCcw size={14} />
+                                Reembolsar
+                              </button>
+                            )}
+                          </div>
                         </TableCell>
 
 

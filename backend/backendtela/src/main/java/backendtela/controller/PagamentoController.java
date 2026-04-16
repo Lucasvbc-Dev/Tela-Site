@@ -1,5 +1,6 @@
 package backendtela.controller;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
@@ -130,14 +131,44 @@ public class PagamentoController {
     public ResponseEntity<?> consultarStatusPagamento(@PathVariable String paymentId) {
         try {
             Payment payment = pagamentoService.consultarPagamento(paymentId);
-            return ResponseEntity.ok(Map.of(
-                    "paymentId", paymentId,
-                    "status", payment.getStatus() == null ? "pending" : payment.getStatus()
-            ));
+            Map<String, Object> response = new HashMap<>();
+            response.put("paymentId", paymentId);
+            response.put("status", payment.getStatus() == null ? "pending" : payment.getStatus());
+            
+            // Incluir dados de QR Code se disponível
+            if (payment.getPointOfInteraction() != null && payment.getPointOfInteraction().getTransactionData() != null) {
+                Map<String, Object> pointOfInteraction = new HashMap<>();
+                Map<String, Object> transactionData = new HashMap<>();
+                transactionData.put("qr_code", payment.getPointOfInteraction().getTransactionData().getQrCode());
+                transactionData.put("qr_code_base64", payment.getPointOfInteraction().getTransactionData().getQrCodeBase64());
+                pointOfInteraction.put("transaction_data", transactionData);
+                response.put("point_of_interaction", pointOfInteraction);
+            }
+            
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Erro ao consultar status do pagamento {}", paymentId, e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Não foi possível consultar o status do pagamento"));
+        }
+    }
+
+    @PostMapping("/{paymentId}/reembolso")
+    public ResponseEntity<?> reembolsarPagamento(@PathVariable String paymentId) {
+        try {
+            pagamentoService.reembolsarPagamento(paymentId);
+            return ResponseEntity.ok(Map.of(
+                    "paymentId", paymentId,
+                    "status", "CANCELADO"
+            ));
+        } catch (IllegalStateException e) {
+            log.error("Erro ao reembolsar pagamento {}", paymentId, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Erro ao reembolsar pagamento {}", paymentId, e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Não foi possível reembolsar o pagamento"));
         }
     }
 }

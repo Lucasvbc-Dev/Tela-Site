@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabaseStoreService } from "@/services/supabaseStoreService";
 import { pagamentoService } from "@/services/pagamentoService";
+import { comunicacaoService } from "@/services/comunicacaoService";
 
 type PaymentMethod = "credito" | "debito" | "pix" | null;
 
@@ -19,6 +20,19 @@ type CardFormState = {
   securityCode: string;
   cpf: string;
   installments: number;
+};
+
+type OrderConfirmationState = {
+  pedidoId: string;
+  nomeCliente: string;
+  emailCliente: string;
+  total: number;
+  endereco: string;
+  itens: Array<{
+    nome: string;
+    quantidade: number;
+    preco: number;
+  }>;
 };
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
@@ -63,9 +77,13 @@ const Checkout = () => {
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
   const [frete, setFrete] = useState(0);
+  const [orderConfirmation, setOrderConfirmation] = useState<OrderConfirmationState | null>(null);
+  const [confirmationSent, setConfirmationSent] = useState(false);
+  const [confirmationAttempted, setConfirmationAttempted] = useState(false);
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalComFrete = totalPrice + frete;
+  const isPixSelected = paymentMethod === "pix";
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
@@ -142,6 +160,20 @@ const Checkout = () => {
         frete,
       });
       setCurrentPedidoId(pedido.id);
+      setOrderConfirmation({
+        pedidoId: pedido.id,
+        nomeCliente: usuario.nome,
+        emailCliente: usuario.email,
+        total: Number(totalComFrete.toFixed(2)),
+        endereco: `${endereco}, ${cidade} - ${estado}, CEP ${cep}`,
+        itens: items.map((item) => ({
+          nome: item.name,
+          quantidade: item.quantity,
+          preco: item.price,
+        })),
+      });
+      setConfirmationSent(false);
+      setConfirmationAttempted(false);
 
       if (paymentMethod === "pix") {
         const pixResponse = await pagamentoService.pagarComPix({
@@ -151,9 +183,25 @@ const Checkout = () => {
           email: usuario.email,
         });
 
-        const txData = pixResponse.point_of_interaction?.transaction_data;
+        let txData = pixResponse.point_of_interaction?.transaction_data;
+        
+        // Se não houver QR Code na resposta inicial, tenta consultar novamente após 2 segundos
         if (!txData?.qr_code && !txData?.qr_code_base64) {
-          throw new Error("PIX criado sem QR Code. Tente novamente em instantes.");
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          try {
+            const statusResponse = await pagamentoService.consultarStatusPagamento(String(pixResponse.id));
+            // Se a resposta tiver os dados do QR Code, use-os
+            if (statusResponse && statusResponse.point_of_interaction?.transaction_data) {
+              txData = statusResponse.point_of_interaction.transaction_data;
+            }
+          } catch (e) {
+            // Se falhar ao consultar, continua com o que tem
+            console.warn("Não foi possível consultar QR Code após criação", e);
+          }
+        }
+
+        if (!txData?.qr_code && !txData?.qr_code_base64) {
+          throw new Error("PIX criado sem QR Code. Sua conta no Mercado Pago pode não estar habilitada para gerar QR Codes via API. Tente usar o Checkout Pro ou valide sua configuração no painel do Mercado Pago.");
         }
 
         const pixStatusLocal = mapMercadoPagoStatusToLocal(pixResponse.status);
@@ -258,6 +306,29 @@ const Checkout = () => {
     return () => window.clearInterval(timer);
   }, [pixPaymentId, currentPedidoId, orderPlaced]);
 
+  useEffect(() => {
+    if (!orderPlaced || !orderConfirmation || confirmationSent || confirmationAttempted) {
+      return;
+    }
+
+    const enviarConfirmacao = async () => {
+      setConfirmationAttempted(true);
+      try {
+        await comunicacaoService.enviarConfirmacaoPedido(orderConfirmation);
+        setConfirmationSent(true);
+      } catch (error) {
+        console.error("Erro ao enviar confirmação do pedido:", error);
+        toast({
+          title: "Pedido confirmado, mas sem e-mail",
+          description: "Nao conseguimos enviar a confirmacao por e-mail agora. Nossa equipe ja recebeu seu pedido.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    void enviarConfirmacao();
+  }, [orderPlaced, orderConfirmation, confirmationSent, confirmationAttempted, toast]);
+
   const handleCopiarPix = async () => {
     if (!pixCode) {
       return;
@@ -312,11 +383,11 @@ const Checkout = () => {
           >
             <h1 className="font-display text-4xl tracking-wide text-foreground mb-4">Pagamento PIX</h1>
             <p className="font-body text-muted-foreground mb-8">
-              Escaneie o QR Code no app do banco para concluir o pagamento. Após aprovação, seu pedido será atualizado automaticamente.
+              Escaneie o QR Code no app do banco ou copie o código abaixo para concluir o pagamento.
             </p>
 
             {pixQrBase64 && (
-              <div className="bg-white p-4 rounded-md inline-block mb-6">
+              <div className="bg-white p-4 rounded-md inline-block mb-6 shadow-sm">
                 <img
                   src={`data:image/png;base64,${pixQrBase64}`}
                   alt="QR Code PIX"
@@ -326,18 +397,25 @@ const Checkout = () => {
             )}
 
             {pixCode && (
-              <div className="space-y-3">
-                <p className="font-body text-sm text-muted-foreground">Ou copie o codigo PIX:</p>
-                <textarea
-                  value={pixCode}
-                  readOnly
-                  className="w-full h-32 p-3 border border-border bg-secondary/30 text-xs"
-                />
+              <div className="space-y-4 text-left max-w-lg mx-auto">
+                <div className="rounded-md border border-border bg-secondary/30 p-4">
+                  <p className="font-body text-xs tracking-[0.25em] uppercase text-muted-foreground mb-2">
+                    Pix copia e cola
+                  </p>
+                  <textarea
+                    value={pixCode}
+                    readOnly
+                    className="w-full h-32 p-3 border border-border bg-background text-xs font-mono"
+                  />
+                </div>
+                <p className="font-body text-xs text-muted-foreground text-center">
+                  Chave cadastrada na loja: tela.contato123@gmail.com
+                </p>
                 <button
                   onClick={handleCopiarPix}
-                  className="px-6 py-3 bg-foreground text-background font-body text-xs tracking-wider uppercase"
+                  className="w-full px-6 py-3 bg-foreground text-background font-body text-xs tracking-wider uppercase"
                 >
-                  Copiar codigo PIX
+                  Copiar código Pix copia e cola
                 </button>
               </div>
             )}
@@ -488,7 +566,7 @@ const Checkout = () => {
                 {[
                   { id: "credito" as const, label: "Cartão de Crédito", icon: CreditCard, desc: "Até 12x sem juros" },
                   { id: "debito" as const, label: "Cartão de Débito", icon: CreditCard, desc: "Pagamento à vista" },
-                  { id: "pix" as const, label: "PIX", icon: QrCode, desc: "QR Code gerado no próprio site" },
+                  { id: "pix" as const, label: "PIX", icon: QrCode, desc: "QR Code e Pix copia e cola" },
                 ].map((method) => (
                   <motion.button
                     key={method.id}
@@ -509,6 +587,13 @@ const Checkout = () => {
                   </motion.button>
                 ))}
               </div>
+
+              {isPixSelected && (
+                <div className="mt-4 rounded-md border border-border bg-secondary/40 p-4">
+                  <p className="font-body text-sm text-foreground mb-1">Ao finalizar, mostraremos o QR Code e o Pix copia e cola nesta mesma tela.</p>
+                  <p className="font-body text-xs text-muted-foreground">Chave da loja cadastrada no Mercado Pago: tela.contato123@gmail.com</p>
+                </div>
+              )}
 
               {(paymentMethod === "credito" || paymentMethod === "debito") && (
                 <motion.div

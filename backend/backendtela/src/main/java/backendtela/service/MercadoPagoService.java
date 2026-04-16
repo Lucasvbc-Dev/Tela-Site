@@ -100,7 +100,7 @@ public class MercadoPagoService {
 
     public Payment buscarPagamento(String paymentId) throws Exception {
         validarConfiguracao();
-        return client.get(Long.parseLong(paymentId));
+        return client.get(Long.valueOf(paymentId));
     }
 
     public PreferenciaPagamentoResponseDTO criarPreferenciaCheckoutPro(CriarPreferenciaPagamentoDTO dto) {
@@ -208,7 +208,7 @@ public class MercadoPagoService {
 
     private String construirBackUrl() {
         String base = frontendUrl == null || frontendUrl.isBlank() ? "http://localhost:5173" : frontendUrl.trim();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) + "/meus-pedidos" : base + "/meus-pedidos";
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) + "/checkout/retorno" : base + "/checkout/retorno";
     }
 
     private String construirNotificationUrl() {
@@ -218,5 +218,31 @@ public class MercadoPagoService {
 
     private boolean isPublicHttpsUrl(String url) {
         return url != null && !url.isBlank() && url.trim().startsWith("https://");
+    }
+
+    public Map<String, Object> reembolsarPagamento(String paymentId) {
+        validarConfiguracao();
+
+        try {
+            Map<?, ?> response = RestClient.builder()
+                    .baseUrl(baseUrl)
+                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.trim())
+                    .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .build()
+                    .post()
+                    .uri("/v1/payments/{paymentId}/refunds", paymentId)
+                    .retrieve()
+                    .body(Map.class);
+
+            if (response == null) {
+                return Map.of("status", "refunded");
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            response.forEach((key, value) -> result.put(String.valueOf(key), value));
+            return result;
+        } catch (RestClientResponseException e) {
+            throw new IllegalStateException("Mercado Pago rejeitou o reembolso: HTTP " + e.getStatusCode() + " - " + e.getResponseBodyAsString(), e);
+        }
     }
 }

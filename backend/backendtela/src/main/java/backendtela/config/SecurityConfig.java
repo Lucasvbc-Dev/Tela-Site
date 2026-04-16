@@ -41,6 +41,8 @@ public class SecurityConfig {
                         "/pagamentos/pix",
                         "/pagamentos/cartao",
                         "/pagamentos/webhook",
+                        "/pagamentos/*/reembolso",
+                        "/comunicacao/**",
                         "/webhook")
                     .permitAll()
                         .anyRequest().authenticated()

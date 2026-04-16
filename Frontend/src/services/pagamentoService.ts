@@ -34,6 +34,17 @@ export interface RespostaPagamentoCartao {
 export interface RespostaStatusPagamento {
   paymentId: string;
   status: string;
+  point_of_interaction?: {
+    transaction_data?: {
+      qr_code?: string;
+      qr_code_base64?: string;
+    };
+  };
+}
+
+export interface RespostaReembolsoPagamento {
+  paymentId: string;
+  status: string;
 }
 
 export interface CriarCheckoutProPayload {
@@ -189,6 +200,19 @@ export const pagamentoService = {
       const message =
         error.response?.data?.message ||
         "Erro ao consultar status do pagamento";
+      throw new Error(message);
+    }
+  },
+
+  reembolsarPagamento: async (
+    paymentId: string,
+  ): Promise<RespostaReembolsoPagamento> => {
+    try {
+      const response = await api.post(`/pagamentos/${paymentId}/reembolso`);
+      return response.data;
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message || "Erro ao solicitar reembolso";
       throw new Error(message);
     }
   },

@@ -15,6 +15,7 @@ import backendtela.entidades.Pagamentos;
 import backendtela.enums.Metodo;
 import backendtela.enums.Status;
 import backendtela.repository.PagamentoRepository;
+import backendtela.repository.PedidoRepository;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -23,15 +24,18 @@ public class PagamentoService {
 
     private final MercadoPagoService mercadoPagoService;
     private final PagamentoRepository pagamentoRepository;
+    private final PedidoRepository pedidoRepository;
     private final WebhookService webhookService;
 
     public PagamentoService(
             MercadoPagoService mercadoPagoService,
             PagamentoRepository pagamentoRepository,
+            PedidoRepository pedidoRepository,
             WebhookService webhookService
     ) {
         this.mercadoPagoService = mercadoPagoService;
         this.pagamentoRepository = pagamentoRepository;
+        this.pedidoRepository = pedidoRepository;
         this.webhookService = webhookService;
     }
 
@@ -71,6 +75,24 @@ public class PagamentoService {
      */
     public void processarWebhook(String payload, String signature) throws Exception {
         webhookService.processarWebhook(payload, signature);
+    }
+
+    /**
+     * Reembolsar pagamento pelo Mercado Pago e atualizar os registros locais.
+     */
+    public void reembolsarPagamento(String paymentId) {
+        Pagamentos pagamento = pagamentoRepository.findByTransactionId(paymentId)
+                .orElseThrow(() -> new IllegalStateException("Pagamento não encontrado para reembolso"));
+
+        mercadoPagoService.reembolsarPagamento(paymentId);
+
+        pagamentoRepository.updateStatusAndTransaction(
+                pagamento.getIdPagamento(),
+                paymentId,
+                Status.CANCELADO.name()
+        );
+        pedidoRepository.updateStatus(pagamento.getPedidoId(), "CANCELADO");
+        log.info("Pagamento reembolsado: paymentId={}, pedidoId={}", paymentId, pagamento.getPedidoId());
     }
 
     /**

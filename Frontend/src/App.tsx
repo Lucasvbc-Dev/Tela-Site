@@ -10,6 +10,7 @@ import Sobre from "./pages/Sobre";
 import Contato from "./pages/Contato";
 import Auth from "./pages/Auth";
 import Checkout from "./pages/Checkout";
+import CheckoutRetorno from "./pages/CheckoutRetorno";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
 import MinhaConta from "./pages/MinhaConta";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/minha-conta" element={<MinhaConta />} />
             <Route path="/meus-pedidos" element={<MeusPedidos />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/checkout/retorno" element={<CheckoutRetorno />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

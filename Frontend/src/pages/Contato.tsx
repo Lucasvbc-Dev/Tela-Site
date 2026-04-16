@@ -3,9 +3,12 @@ import { motion } from "framer-motion";
 import Layout from "@/components/layout/Layout";
 import AnimatedSection from "@/components/ui/AnimatedSection";
 import { MapPin, Phone, Mail, Clock, Instagram, Send } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { comunicacaoService } from "@/services/comunicacaoService";
 
 
 const Contato = () => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -13,6 +16,7 @@ const Contato = () => {
     message: "",
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -20,9 +24,29 @@ const Contato = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitted(true);
+
+    try {
+      setIsSending(true);
+      await comunicacaoService.enviarContato({
+        nome: formData.name,
+        email: formData.email,
+        assunto: formData.subject,
+        mensagem: formData.message,
+      });
+      setIsSubmitted(true);
+      setFormData({ name: "", email: "", subject: "", message: "" });
+      toast({ title: "Mensagem enviada", description: "Sua mensagem foi encaminhada para a loja." });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao enviar mensagem",
+        description: error?.message || "Não foi possível enviar sua mensagem agora.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const contactInfo = [
@@ -39,7 +63,7 @@ const Contato = () => {
     {
       icon: Mail,
       title: "E-mail",
-      details: ["contato@tela.com.br"],
+      details: ["tela.contato123@gmail.com"],
     },
     {
       icon: Instagram,
@@ -202,11 +226,12 @@ const Contato = () => {
 
                     <motion.button
                       type="submit"
+                      disabled={isSending}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full px-8 py-4 bg-foreground text-background font-body text-sm tracking-wider uppercase hover:bg-foreground/90 transition-colors duration-300"
+                      className="w-full px-8 py-4 bg-foreground text-background font-body text-sm tracking-wider uppercase hover:bg-foreground/90 transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Enviar Mensagem
+                      {isSending ? "Enviando..." : "Enviar Mensagem"}
                     </motion.button>
                   </form>
                 )}

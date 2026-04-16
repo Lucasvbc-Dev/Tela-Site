@@ -196,7 +196,7 @@ export const supabaseStoreService = {
       nome: item.nome,
       preco: Number(item.preco),
       quantidade: Number(item.quantidade),
-      tamanho_produtos: item.tamanhoProduto,
+      tamanho: item.tamanhoProduto,
     }));
 
     const { error: itensError } = await supabase.from("pedido_itens").insert(itensRows);
@@ -283,7 +283,11 @@ export const supabaseStoreService = {
     const usuarioIds = [...new Set(pedidos.map((pedido) => pedido.usuario_id))];
     const pedidoIds = pedidos.map((pedido) => pedido.id);
 
-    const [{ data: usuarios, error: usuariosError }, { data: itens, error: itensError }] =
+    const [
+      { data: usuarios, error: usuariosError },
+      { data: itens, error: itensError },
+      { data: pagamentos, error: pagamentosError },
+    ] =
       await Promise.all([
         supabase
           .from("usuarios")
@@ -293,12 +297,18 @@ export const supabaseStoreService = {
           .from("pedido_itens")
           .select("pedido_id, produto_id, nome, preco, quantidade")
           .in("pedido_id", pedidoIds),
+        supabase
+          .from("pagamentos")
+          .select("pedido_id, transaction_id, status")
+          .in("pedido_id", pedidoIds),
       ]);
 
     assertNoError(usuariosError, "Erro ao listar clientes");
     assertNoError(itensError, "Erro ao listar itens");
+    assertNoError(pagamentosError, "Erro ao listar pagamentos");
 
     const usuarioMap = new Map((usuarios || []).map((usuario) => [usuario.id, usuario]));
+    const pagamentoMap = new Map((pagamentos || []).map((pagamento) => [pagamento.pedido_id, pagamento]));
     const produtoIds = [...new Set((itens || []).map((item) => String(item.produto_id)).filter(Boolean))];
     const imagemMap = await loadImagensMap(produtoIds);
     const itensPorPedido = (itens || []).reduce((acc: Record<string, any[]>, item) => {
@@ -311,6 +321,7 @@ export const supabaseStoreService = {
 
     return pedidos.map((pedido) => {
       const usuario = usuarioMap.get(pedido.usuario_id);
+      const pagamento = pagamentoMap.get(pedido.id);
       return {
         id: pedido.id,
         nome: usuario?.nome || "Cliente",
@@ -325,6 +336,8 @@ export const supabaseStoreService = {
         })),
         total: Number(pedido.total || 0),
         status: pedido.status,
+        transactionId: pagamento?.transaction_id || "",
+        paymentStatus: pagamento?.status || pedido.status,
         createdAt: pedido.created_at,
       };
     });

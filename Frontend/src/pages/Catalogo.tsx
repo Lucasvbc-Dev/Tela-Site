@@ -106,7 +106,7 @@ const getCollectionKey = (categoria?: string | null): CollectionKey => {
 };
 
 const Catalogo = () => {
-  const [activeCategory, setActiveCategory] = useState("basic-tela");
+  const [activeCategory, setActiveCategory] = useState("todas");
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<ProductSize | null>(null);

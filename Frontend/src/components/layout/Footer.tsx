@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Instagram, Facebook, } from "lucide-react";
+import { Instagram, Facebook } from "lucide-react";
 import { motion } from "framer-motion";
 
 const Footer = () => {
@@ -45,7 +45,7 @@ const Footer = () => {
           <div>
             <h4 className="font-display text-lg tracking-wider mb-6">Contato</h4>
             <div className="space-y-3 font-body text-sm text-primary-foreground/60">
-              <p>contato@tela.com.br</p>
+              <p>tela.contato123@gmail.com</p>
               <p>(85) 8989-1444</p>
               <p>Fortaleza, CE</p>
             </div>

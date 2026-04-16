@@ -20,7 +20,7 @@ const Newsletter = () => {
       <div className="container mx-auto px-6 lg:px-12">
         <AnimatedSection className="max-w-2xl mx-auto text-center">
           <h2 className="section-heading text-foreground mb-4">
-            Fique por Dentro
+            Receba novidades exclusivas
           </h2>
           <p className="font-body text-muted-foreground mb-10">
             Inscreva-se para receber novidades exclusivas e ofertas especiais

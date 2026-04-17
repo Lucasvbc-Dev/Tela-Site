@@ -21,6 +21,10 @@ public class MercadoPagoConfigApp {
     @PostConstruct
     public void init() {
         String normalizedAccessToken = normalizeCredential(accessToken);
+        String normalizedPublicKey = normalizeCredential(publicKey);
+
+        validarCompatibilidadeCredenciais(normalizedAccessToken, normalizedPublicKey);
+
         if (!normalizedAccessToken.isBlank()) {
             MercadoPagoConfig.setAccessToken(normalizedAccessToken);
             log.info("MercadoPago configurado com token de acesso (len={}, prefix={}...)",
@@ -30,7 +34,6 @@ public class MercadoPagoConfigApp {
             log.warn("⚠️  MercadoPago: Token de acesso não configurado. Endpoints de pagamento não funcionarão.");
         }
 
-        String normalizedPublicKey = normalizeCredential(publicKey);
         if (!normalizedPublicKey.isBlank()) {
             log.info("MercadoPago: Public key configurada (len={}, prefix={}...)",
                     normalizedPublicKey.length(),
@@ -53,6 +56,23 @@ public class MercadoPagoConfigApp {
 
     private String maskPrefix(String token) {
         return token.substring(0, Math.min(12, token.length()));
+    }
+
+    private void validarCompatibilidadeCredenciais(String token, String key) {
+        if (token.isBlank() || key.isBlank()) {
+            return;
+        }
+
+        boolean tokenLive = token.startsWith("APP_USR-");
+        boolean tokenTest = token.startsWith("TEST-");
+        boolean keyLive = key.startsWith("APP_USR-");
+        boolean keyTest = key.startsWith("TEST-");
+
+        if ((tokenLive && keyTest) || (tokenTest && keyLive)) {
+            log.error("MercadoPago inconsistente: access token e public key sao de ambientes diferentes (tokenPrefix={}, keyPrefix={}).",
+                    maskPrefix(token),
+                    maskPrefix(key));
+        }
     }
 
     public String getAccessToken() {

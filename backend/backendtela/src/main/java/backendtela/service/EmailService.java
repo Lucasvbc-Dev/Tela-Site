@@ -7,6 +7,7 @@ import java.text.NumberFormat;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +40,15 @@ public class EmailService {
     @Value("${spring.mail.host:}")
     private String mailHost;
 
+    @Value("${spring.mail.port:587}")
+    private int mailPort;
+
+    @Value("${app.mail.smtp-fallback-enabled:true}")
+    private boolean smtpFallbackEnabled;
+
+    @Value("${app.mail.smtp-fallback-ssl-port:465}")
+    private int smtpFallbackSslPort;
+
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
@@ -63,17 +73,7 @@ public class EmailService {
         validarConfiguracaoEmail();
 
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setTo(destino);
-            helper.setFrom(obterRemetente(), fromName);
-            helper.setSubject(assunto);
-            helper.setText(html, true);
-            if (replyTo != null && !replyTo.isBlank()) {
-                helper.setReplyTo(replyTo);
-            }
-
-            mailSender.send(message);
+            enviarEmailComSender(mailSender, destino, assunto, html, replyTo);
         } catch (MailException | jakarta.mail.MessagingException | UnsupportedEncodingException e) {
             String detalhe = e.getMessage() == null ? "" : e.getMessage();
             String detalheLower = detalhe.toLowerCase();
@@ -91,6 +91,16 @@ public class EmailService {
                     || detalheLower.contains("connect timed out")
                     || detalheLower.contains("timed out")
                     || detalheLower.contains("unknownhost")) {
+                if (smtpFallbackEnabled && mailPort == 587) {
+                    try {
+                        tentarFallbackSmtpSsl(destino, assunto, html, replyTo);
+                        log.warn("SMTP fallback ativado: envio concluido via SSL na porta {}.", smtpFallbackSslPort);
+                        return;
+                    } catch (Exception fallbackEx) {
+                        throw new IllegalStateException("Falha de conexao SMTP. Timeout/conexao recusada na porta 587 e fallback SSL 465 tambem falhou: " + rootMessage(fallbackEx), fallbackEx);
+                    }
+                }
+
                 throw new IllegalStateException("Falha de conexao SMTP. Verifique SMTP_HOST, SMTP_PORT e acesso de rede do deploy.", e);
             }
 
@@ -110,6 +120,51 @@ public class EmailService {
         if (mailPassword == null || mailPassword.isBlank()) {
             throw new IllegalStateException("SMTP_PASSWORD nao configurado.");
         }
+    }
+
+    private void enviarEmailComSender(JavaMailSender sender, String destino, String assunto, String html, String replyTo)
+            throws jakarta.mail.MessagingException, UnsupportedEncodingException {
+        MimeMessage message = sender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
+        helper.setTo(destino);
+        helper.setFrom(obterRemetente(), fromName);
+        helper.setSubject(assunto);
+        helper.setText(html, true);
+        if (replyTo != null && !replyTo.isBlank()) {
+            helper.setReplyTo(replyTo);
+        }
+        sender.send(message);
+    }
+
+    private void tentarFallbackSmtpSsl(String destino, String assunto, String html, String replyTo)
+            throws jakarta.mail.MessagingException, UnsupportedEncodingException {
+        JavaMailSenderImpl fallbackSender = new JavaMailSenderImpl();
+        fallbackSender.setHost(mailHost);
+        fallbackSender.setPort(smtpFallbackSslPort);
+        fallbackSender.setUsername(mailUsername);
+        fallbackSender.setPassword(mailPassword);
+
+        java.util.Properties props = fallbackSender.getJavaMailProperties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.starttls.enable", "false");
+        props.put("mail.smtp.ssl.enable", "true");
+        props.put("mail.smtp.connectiontimeout", "5000");
+        props.put("mail.smtp.timeout", "5000");
+        props.put("mail.smtp.writetimeout", "5000");
+
+        enviarEmailComSender(fallbackSender, destino, assunto, html, replyTo);
+    }
+
+    private String rootMessage(Throwable throwable) {
+        Throwable current = throwable;
+        String message = "erro desconhecido";
+        while (current != null) {
+            if (current.getMessage() != null && !current.getMessage().isBlank()) {
+                message = current.getMessage();
+            }
+            current = current.getCause();
+        }
+        return message;
     }
 
     private String montarCorpoContato(ContatoMensagemDTO dto) {

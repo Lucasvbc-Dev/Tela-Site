@@ -38,6 +38,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/usuarios", "/usuarios/login").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/diagnose/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/pagamentos/*/status").permitAll()
                     .requestMatchers(HttpMethod.POST,
                         "/pagamentos/checkout-pro",

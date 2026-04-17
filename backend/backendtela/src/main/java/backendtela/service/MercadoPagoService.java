@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import com.mercadopago.core.MPRequestOptions;
 import com.mercadopago.client.payment.PaymentClient;
 import com.mercadopago.client.payment.PaymentCreateRequest;
 import com.mercadopago.client.payment.PaymentPayerRequest;
@@ -50,7 +51,16 @@ public class MercadoPagoService {
                 || (normalized.startsWith("'") && normalized.endsWith("'"))) {
             normalized = normalized.substring(1, normalized.length() - 1).trim();
         }
+
+        // Remove whitespace invisivel que pode vir de variavel colada no painel da hospedagem.
+        normalized = normalized.replaceAll("\\s+", "");
         return normalized;
+    }
+
+    private MPRequestOptions requestOptionsWithAccessToken() {
+        return MPRequestOptions.builder()
+                .accessToken(getNormalizedAccessToken())
+                .build();
     }
 
     // 🔹 PIX
@@ -73,7 +83,7 @@ public class MercadoPagoService {
                 .build();
 
         try {
-            return client.create(request);
+            return client.create(request, requestOptionsWithAccessToken());
         } catch (MPApiException e) {
             String detalhe = e.getApiResponse() != null
                     ? "HTTP " + e.getApiResponse().getStatusCode() + " - " + e.getApiResponse().getContent()
@@ -102,7 +112,7 @@ public class MercadoPagoService {
                 .build();
 
         try {
-            return client.create(request);
+            return client.create(request, requestOptionsWithAccessToken());
         } catch (MPApiException e) {
             String detalhe = e.getApiResponse() != null
                     ? "HTTP " + e.getApiResponse().getStatusCode() + " - " + e.getApiResponse().getContent()
@@ -113,7 +123,7 @@ public class MercadoPagoService {
 
     public Payment buscarPagamento(String paymentId) throws Exception {
         validarConfiguracao();
-        return client.get(Long.valueOf(paymentId));
+        return client.get(Long.valueOf(paymentId), requestOptionsWithAccessToken());
     }
 
     public PreferenciaPagamentoResponseDTO criarPreferenciaCheckoutPro(CriarPreferenciaPagamentoDTO dto) {

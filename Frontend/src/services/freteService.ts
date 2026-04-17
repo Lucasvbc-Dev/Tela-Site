@@ -12,6 +12,8 @@ export interface FreteItemPayload {
 
 export interface CalcularFretePayload {
   cepDestino: string;
+  cidadeDestino?: string;
+  estadoDestino?: string;
   itens: FreteItemPayload[];
 }
 

@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import AnimatedSection from "../ui/AnimatedSection";
 import aboutImage from "@/assets/CEOS.jpeg";
 
 const AboutPreview = () => {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section className="py-24 lg:py-32 bg-secondary">
       <div className="container mx-auto px-6 lg:px-12">
@@ -13,9 +15,12 @@ const AboutPreview = () => {
               <motion.img
                 src={aboutImage}
                 alt="TELA Store"
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
                 className="w-full h-full object-cover"
-                whileHover={{ scale: 1.03 }}
-                transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+                whileHover={reduceMotion ? undefined : { scale: 1.015 }}
+                transition={{ duration: reduceMotion ? 0.2 : 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
               />
             </div>
           </AnimatedSection>

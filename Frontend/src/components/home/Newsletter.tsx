@@ -32,7 +32,7 @@ const Newsletter = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="font-body text-foreground"
             >
-              Obrigada por se inscrever! ✨
+              Obrigada por se inscrever! 
             </motion.div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">

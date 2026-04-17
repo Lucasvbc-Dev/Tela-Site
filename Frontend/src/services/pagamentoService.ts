@@ -80,9 +80,7 @@ type MercadoPagoTokenResponse = {
   id: string;
 };
 
-const MERCADO_PAGO_PUBLIC_KEY =
-  import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY ||
-  "APP_USR-35e7ec45-92bd-44ec-96d8-75761abc4be9";
+const MERCADO_PAGO_PUBLIC_KEY = import.meta.env.VITE_MERCADOPAGO_PUBLIC_KEY;
 
 const MERCADO_PAGO_SCRIPT = "https://sdk.mercadopago.com/js/v2";
 

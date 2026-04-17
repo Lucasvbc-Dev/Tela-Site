@@ -28,13 +28,36 @@ type OrderConfirmationState = {
   nomeCliente: string;
   emailCliente: string;
   total: number;
+  subtotal: number;
+  frete: number;
   endereco: string;
+  cep: string;
+  cidade: string;
+  estado: string;
+  metodoPagamento: Exclude<PaymentMethod, null>;
+  dataPedido: string;
+  freteSelecionado?: {
+    transportadora: string;
+    nome: string;
+    prazoDias?: number;
+  };
   itens: Array<{
     nome: string;
     quantidade: number;
     preco: number;
+    imagem?: string;
+    tamanho?: string;
   }>;
 };
+
+type ViaCepResponse = {
+  logradouro?: string;
+  localidade?: string;
+  uf?: string;
+  erro?: boolean;
+};
+
+const CHECKOUT_PENDING_ORDER_KEY = "checkout_pending_order";
 
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -50,6 +73,33 @@ const mapMercadoPagoStatusToLocal = (status?: string): "PAGO" | "PENDENTE" | "CA
     return "CANCELADO";
   }
   return "PENDENTE";
+};
+
+const normalizeImageSrc = (src?: string) => {
+  const value = (src || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(value)) {
+    return value;
+  }
+
+  if (value.startsWith("//")) {
+    return `https:${value}`;
+  }
+
+  if (value.startsWith("/")) {
+    return value;
+  }
+
+  return `/${value.replace(/^\.?\//, "")}`;
+};
+
+const buildImageFallback = (itemName: string) => {
+  const label = (itemName || "TELA").slice(0, 14).toUpperCase();
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='320' height='420'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop offset='0%' stop-color='%23e5e7eb'/><stop offset='100%' stop-color='%23cbd5e1'/></linearGradient></defs><rect width='100%' height='100%' fill='url(%23g)'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23334155' font-family='Arial, sans-serif' font-size='22' letter-spacing='1'>${label}</text></svg>`;
+  return `data:image/svg+xml;utf8,${svg}`;
 };
 
 const Checkout = () => {
@@ -73,10 +123,12 @@ const Checkout = () => {
   });
   const [currentPedidoId, setCurrentPedidoId] = useState<string | null>(null);
   const [pixPaymentId, setPixPaymentId] = useState<string | null>(null);
-  const [endereco, setEndereco] = useState("");
+  const [rua, setRua] = useState("");
+  const [complemento, setComplemento] = useState("");
   const [cep, setCep] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
+  const [isBuscandoCep, setIsBuscandoCep] = useState(false);
   const [frete, setFrete] = useState(0);
   const [freteOpcoes, setFreteOpcoes] = useState<FreteOpcao[]>([]);
   const [freteSelecionadoId, setFreteSelecionadoId] = useState("");
@@ -85,11 +137,50 @@ const Checkout = () => {
   const [confirmationSent, setConfirmationSent] = useState(false);
   const [confirmationAttempted, setConfirmationAttempted] = useState(false);
 
+  const isDevelopment = import.meta.env.DEV;
+  const isHttps = window.location.protocol === "https:";
+  const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  const allowCardOnHttpLocal = import.meta.env.VITE_ALLOW_CARD_ON_HTTP_LOCAL === "true";
+  const isSecureCardContext = isHttps || (isDevelopment && isLocalHost && allowCardOnHttpLocal);
+
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalComFrete = totalPrice + frete;
   const isPixSelected = paymentMethod === "pix";
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
+
+  const buscarEnderecoPorCep = async (rawCep: string) => {
+    const cepLimpo = rawCep.replace(/\D/g, "");
+    if (cepLimpo.length !== 8) {
+      return;
+    }
+
+    try {
+      setIsBuscandoCep(true);
+      const response = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+
+      if (!response.ok) {
+        throw new Error("Nao foi possivel consultar o CEP informado.");
+      }
+
+      const data = (await response.json()) as ViaCepResponse;
+      if (data.erro) {
+        throw new Error("CEP nao encontrado.");
+      }
+
+      setRua((data.logradouro || "").trim());
+      setCidade((data.localidade || "").trim());
+      setEstado((data.uf || "").trim().toUpperCase());
+    } catch (error: any) {
+      toast({
+        title: "Erro ao buscar CEP",
+        description: error?.message || "Nao foi possivel buscar o endereco pelo CEP.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBuscandoCep(false);
+    }
+  };
 
   const handleCalcularFrete = async () => {
     const cepLimpo = cep.replace(/\D/g, "");
@@ -116,6 +207,8 @@ const Checkout = () => {
       setIsCalculandoFrete(true);
       const response = await freteService.calcularFrete({
         cepDestino: cepLimpo,
+        cidadeDestino: cidade.trim(),
+        estadoDestino: estado.trim(),
         itens: items.map((item) => ({
           nome: item.name,
           quantidade: item.quantity,
@@ -175,10 +268,10 @@ const Checkout = () => {
       return;
     }
 
-    if (!endereco.trim() || !cep.trim() || !cidade.trim() || !estado.trim()) {
+    if (!rua.trim() || !complemento.trim() || !cep.trim() || !cidade.trim() || !estado.trim()) {
       toast({
         title: "Endereço incompleto",
-        description: "Preencha endereço, CEP, cidade e estado para continuar.",
+        description: "Preencha rua, numero/complemento, CEP, cidade e estado para continuar.",
         variant: "destructive",
       });
       return;
@@ -202,7 +295,7 @@ const Checkout = () => {
       return;
     }
 
-    if (paymentMethod === "credito" || paymentMethod === "debito") {
+    if ((paymentMethod === "credito" || paymentMethod === "debito") && isSecureCardContext) {
       const number = onlyDigits(cardForm.cardNumber);
       const cvv = onlyDigits(cardForm.securityCode);
       const cpf = onlyDigits(cardForm.cpf);
@@ -221,6 +314,7 @@ const Checkout = () => {
 
     try {
       setIsSubmitting(true);
+      const enderecoCompleto = `${rua.trim()}, ${complemento.trim()}`;
 
       const itensPayload = items.map((item) => ({
         produtoId: item.id,
@@ -234,25 +328,43 @@ const Checkout = () => {
         usuarioId: usuario.id,
         metodoPagamento: paymentMethod,
         itens: itensPayload,
-        endereco,
+        endereco: enderecoCompleto,
         cep,
         cidade,
         estado,
         frete,
       });
       setCurrentPedidoId(pedido.id);
-      setOrderConfirmation({
+      const freteSelecionado = freteOpcoes.find((opcao) => opcao.id === freteSelecionadoId);
+      const confirmationPayload: OrderConfirmationState = {
         pedidoId: pedido.id,
         nomeCliente: usuario.nome,
         emailCliente: usuario.email,
         total: Number(totalComFrete.toFixed(2)),
-        endereco: `${endereco}, ${cidade} - ${estado}, CEP ${cep}`,
+        subtotal: Number(totalPrice.toFixed(2)),
+        frete: Number(frete.toFixed(2)),
+        endereco: `${enderecoCompleto}, ${cidade} - ${estado}, CEP ${cep}`,
+        cep,
+        cidade,
+        estado,
+        metodoPagamento: paymentMethod,
+        dataPedido: new Date().toISOString(),
+        freteSelecionado: freteSelecionado
+          ? {
+              transportadora: freteSelecionado.transportadora,
+              nome: freteSelecionado.nome,
+              prazoDias: freteSelecionado.prazoDias,
+            }
+          : undefined,
         itens: items.map((item) => ({
           nome: item.name,
           quantidade: item.quantity,
           preco: item.price,
+          imagem: normalizeImageSrc(item.image),
+          tamanho: item.size,
         })),
-      });
+      };
+      setOrderConfirmation(confirmationPayload);
       setConfirmationSent(false);
       setConfirmationAttempted(false);
 
@@ -303,6 +415,31 @@ const Checkout = () => {
         return;
       }
 
+      if (!isSecureCardContext) {
+        localStorage.setItem(CHECKOUT_PENDING_ORDER_KEY, JSON.stringify(confirmationPayload));
+
+        const checkout = await pagamentoService.criarCheckoutPro({
+          pedidoId: pedido.id,
+          email: usuario.email,
+          metodoPagamento: paymentMethod,
+          itens: items.map((item) => ({
+            produtoId: item.id,
+            nome: item.name,
+            preco: Number(item.price.toFixed(2)),
+            quantidade: item.quantity,
+          })),
+          backUrl: `${window.location.origin}/checkout/retorno`,
+        });
+
+        const checkoutUrl = checkout.initPoint || checkout.sandboxInitPoint;
+        if (!checkoutUrl) {
+          throw new Error("Nao foi possivel iniciar o checkout seguro do Mercado Pago.");
+        }
+
+        window.location.href = checkoutUrl;
+        return;
+      }
+
       const cardToken = await pagamentoService.criarTokenCartao({
         cardholderName: cardForm.cardholderName.trim(),
         cardNumber: onlyDigits(cardForm.cardNumber),
@@ -318,7 +455,7 @@ const Checkout = () => {
         valor: Number(totalComFrete.toFixed(2)),
         email: usuario.email,
         token: cardToken,
-        installments: paymentMethod === "debito" ? 1 : cardForm.installments,
+        installments: paymentMethod === "debito" ? 1 : Math.min(Math.max(cardForm.installments, 1), 3),
       });
 
       const cardStatusLocal = mapMercadoPagoStatusToLocal(cardPayment.status);
@@ -428,25 +565,150 @@ const Checkout = () => {
   };
 
   if (orderPlaced) {
+    const metodoPagamentoLabel: Record<Exclude<PaymentMethod, null>, string> = {
+      credito: "Cartao de Credito",
+      debito: "Cartao de Debito",
+      pix: "PIX",
+    };
+
+    const dataPedidoFormatada = orderConfirmation
+      ? new Date(orderConfirmation.dataPedido).toLocaleString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+
     return (
       <Layout>
-        <section className="pt-32 pb-16 lg:pt-40 lg:pb-24 min-h-[80vh] flex items-center justify-center">
+        <section className="pt-28 pb-16 lg:pt-36 lg:pb-24 bg-background min-h-[80vh]">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center max-w-md mx-auto px-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-6xl mx-auto px-6 lg:px-10"
           >
-            <CheckCircle size={64} className="mx-auto mb-6 text-foreground" />
-            <h1 className="font-display text-4xl tracking-wide text-foreground mb-4">Pedido Confirmado</h1>
-            <p className="font-body text-muted-foreground mb-8">
-              Seu pedido foi realizado e o pagamento foi processado no próprio site com sucesso.
-            </p>
-            <a
-              href="/"
-              className="inline-block px-8 py-4 bg-foreground text-background font-body text-sm tracking-wider uppercase hover:bg-foreground/90 transition-colors"
-            >
-              Voltar ao Início
-            </a>
+            <div className="rounded-xl border border-border bg-secondary/20 p-6 md:p-8 mb-8">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <CheckCircle size={30} className="text-foreground" />
+                    <p className="font-body text-xs tracking-[0.25em] uppercase text-muted-foreground">
+                      Pagamento confirmado
+                    </p>
+                  </div>
+                  <h1 className="font-display text-3xl lg:text-4xl tracking-wide text-foreground mb-2">Pedido confirmado com sucesso</h1>
+                  <p className="font-body text-sm text-muted-foreground">
+                    Obrigado pela compra, {orderConfirmation?.nomeCliente}. Enviamos os detalhes para {orderConfirmation?.emailCliente}.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-background px-4 py-3 min-w-[220px]">
+                  <p className="font-body text-xs uppercase tracking-[0.2em] text-muted-foreground mb-1">Numero do pedido</p>
+                  <p className="font-display text-lg text-foreground break-all">#{orderConfirmation?.pedidoId}</p>
+                  <p className="font-body text-xs text-muted-foreground mt-2">{dataPedidoFormatada}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 rounded-xl border border-border bg-background p-5 md:p-6">
+                <h2 className="font-display text-2xl tracking-wide text-foreground mb-5">Itens do pedido</h2>
+                <div className="space-y-4">
+                  {orderConfirmation?.itens.map((item, index) => (
+                    <div key={`${item.nome}-${index}`} className="flex gap-4 border-b border-border pb-4 last:border-b-0 last:pb-0">
+                      <div className="w-20 h-24 bg-secondary overflow-hidden rounded-md flex-shrink-0">
+                        {item.imagem ? (
+                          <img
+                            src={normalizeImageSrc(item.imagem)}
+                            alt={item.nome}
+                            className="w-full h-full object-cover"
+                            onError={(event) => {
+                              event.currentTarget.src = buildImageFallback(item.nome);
+                            }}
+                          />
+                        ) : (
+                          <img src={buildImageFallback(item.nome)} alt={item.nome} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-display text-lg text-foreground leading-tight">{item.nome}</p>
+                        <p className="font-body text-xs text-muted-foreground mt-1">Quantidade: {item.quantidade}</p>
+                        {item.tamanho && (
+                          <p className="font-body text-xs text-muted-foreground">Tamanho: {item.tamanho}</p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-body text-xs uppercase tracking-wider text-muted-foreground">Valor unitario</p>
+                        <p className="font-body text-sm text-foreground">{formatPrice(item.preco)}</p>
+                        <p className="font-body text-xs uppercase tracking-wider text-muted-foreground mt-2">Subtotal item</p>
+                        <p className="font-display text-lg text-foreground">{formatPrice(item.preco * item.quantidade)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="rounded-xl border border-border bg-background p-5">
+                  <h3 className="font-display text-xl tracking-wide text-foreground mb-4">Entrega</h3>
+                  <p className="font-body text-sm text-foreground leading-relaxed mb-2">{orderConfirmation?.endereco}</p>
+                  <p className="font-body text-xs text-muted-foreground">
+                    {orderConfirmation?.cidade} - {orderConfirmation?.estado} | CEP {orderConfirmation?.cep}
+                  </p>
+                  {orderConfirmation?.freteSelecionado && (
+                    <div className="mt-4 rounded-md border border-border bg-secondary/20 p-3">
+                      <p className="font-body text-xs uppercase tracking-[0.2em] text-muted-foreground mb-1">Frete selecionado</p>
+                      <p className="font-body text-sm text-foreground">
+                        {orderConfirmation.freteSelecionado.transportadora} - {orderConfirmation.freteSelecionado.nome}
+                      </p>
+                      {typeof orderConfirmation.freteSelecionado.prazoDias === "number" && (
+                        <p className="font-body text-xs text-muted-foreground mt-1">
+                          Prazo estimado: {orderConfirmation.freteSelecionado.prazoDias} dia(s)
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border bg-background p-5">
+                  <h3 className="font-display text-xl tracking-wide text-foreground mb-4">Pagamento</h3>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-body text-xs uppercase tracking-wider text-muted-foreground">Metodo</span>
+                    <span className="font-body text-sm text-foreground">
+                      {orderConfirmation ? metodoPagamentoLabel[orderConfirmation.metodoPagamento] : ""}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-body text-xs uppercase tracking-wider text-muted-foreground">Subtotal</span>
+                    <span className="font-body text-sm text-foreground">{formatPrice(orderConfirmation?.subtotal || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="font-body text-xs uppercase tracking-wider text-muted-foreground">Frete</span>
+                    <span className="font-body text-sm text-foreground">{formatPrice(orderConfirmation?.frete || 0)}</span>
+                  </div>
+                  <div className="border-t border-border pt-3 flex justify-between items-center">
+                    <span className="font-body text-xs uppercase tracking-wider text-muted-foreground">Total pago</span>
+                    <span className="font-display text-2xl text-foreground">{formatPrice(orderConfirmation?.total || 0)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <a
+                    href="/meus-pedidos"
+                    className="inline-flex justify-center items-center px-4 py-3 border border-foreground text-foreground font-body text-xs tracking-wider uppercase hover:bg-secondary transition-colors"
+                  >
+                    Ver meus pedidos
+                  </a>
+                  <a
+                    href="/catalogo"
+                    className="inline-flex justify-center items-center px-4 py-3 bg-foreground text-background font-body text-xs tracking-wider uppercase hover:bg-foreground/90 transition-colors"
+                  >
+                    Continuar comprando
+                  </a>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </section>
       </Layout>
@@ -579,22 +841,40 @@ const Checkout = () => {
               </h2>
               <div className="space-y-3 mb-8">
                 <input
-                  value={endereco}
-                  onChange={(e) => setEndereco(e.target.value)}
-                  placeholder="Rua, número e complemento"
+                  value={rua}
+                  onChange={(e) => setRua(e.target.value)}
+                  placeholder="Rua"
+                  className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
+                />
+                <input
+                  value={complemento}
+                  onChange={(e) => setComplemento(e.target.value)}
+                  placeholder="Numero, apartamento, bloco, referencia..."
                   className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
                 />
                 <input
                   value={cep}
                   onChange={(e) => {
-                    setCep(e.target.value.replace(/\D/g, "").slice(0, 8));
+                    const novoCep = e.target.value.replace(/\D/g, "").slice(0, 8);
+                    setCep(novoCep);
                     setFrete(0);
                     setFreteOpcoes([]);
                     setFreteSelecionadoId("");
+                    if (novoCep.length < 8) {
+                      setRua("");
+                      setCidade("");
+                      setEstado("");
+                    }
+                  }}
+                  onBlur={() => {
+                    void buscarEnderecoPorCep(cep);
                   }}
                   placeholder="CEP (00000-000)"
                   className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
                 />
+                {isBuscandoCep && (
+                  <p className="font-body text-xs text-muted-foreground">Buscando endereço pelo CEP...</p>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <input
                     value={cidade}
@@ -681,7 +961,7 @@ const Checkout = () => {
               </h2>
               <div className="space-y-3">
                 {[
-                  { id: "credito" as const, label: "Cartão de Crédito", icon: CreditCard, desc: "Até 12x sem juros" },
+                  { id: "credito" as const, label: "Cartão de Crédito", icon: CreditCard, desc: "Até 3x sem juros" },
                   { id: "debito" as const, label: "Cartão de Débito", icon: CreditCard, desc: "Pagamento à vista" },
                   { id: "pix" as const, label: "PIX", icon: QrCode, desc: "QR Code e Pix copia e cola" },
                 ].map((method) => (
@@ -718,10 +998,21 @@ const Checkout = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-6 space-y-3"
                 >
+                  {!isSecureCardContext && (
+                    <div className="rounded-md border border-border bg-secondary/30 p-4">
+                      <p className="font-body text-sm text-foreground mb-1">
+                        Caso a rede nao esteja segura, voce sera direcionado para o Mercado Pago.
+                      </p>
+                      <p className="font-body text-xs text-muted-foreground">
+                        Em rede segura, o pagamento por cartao acontece aqui no site.
+                      </p>
+                    </div>
+                  )}
                   <input
                     value={cardForm.cardholderName}
                     onChange={(event) => setCardForm((prev) => ({ ...prev, cardholderName: event.target.value }))}
                     placeholder="Nome impresso no cartão"
+                    disabled={!isSecureCardContext}
                     className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
                   />
                   <input
@@ -734,6 +1025,7 @@ const Checkout = () => {
                     }
                     placeholder="Número do cartão"
                     inputMode="numeric"
+                    disabled={!isSecureCardContext}
                     className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
                   />
                   <div className="grid grid-cols-3 gap-3">
@@ -742,6 +1034,7 @@ const Checkout = () => {
                       onChange={(event) => setCardForm((prev) => ({ ...prev, expiryMonth: toMonth(event.target.value) }))}
                       placeholder="MM"
                       inputMode="numeric"
+                      disabled={!isSecureCardContext}
                       className="h-11 px-3 border border-border bg-background font-body text-sm"
                     />
                     <input
@@ -749,6 +1042,7 @@ const Checkout = () => {
                       onChange={(event) => setCardForm((prev) => ({ ...prev, expiryYear: toYear(event.target.value) }))}
                       placeholder="AA"
                       inputMode="numeric"
+                      disabled={!isSecureCardContext}
                       className="h-11 px-3 border border-border bg-background font-body text-sm"
                     />
                     <input
@@ -761,6 +1055,7 @@ const Checkout = () => {
                       }
                       placeholder="CVV"
                       inputMode="numeric"
+                      disabled={!isSecureCardContext}
                       className="h-11 px-3 border border-border bg-background font-body text-sm"
                     />
                   </div>
@@ -775,17 +1070,21 @@ const Checkout = () => {
                       }
                       placeholder="CPF do titular"
                       inputMode="numeric"
+                      disabled={!isSecureCardContext}
                       className="h-11 px-3 border border-border bg-background font-body text-sm"
                     />
                     <select
                       value={cardForm.installments}
                       onChange={(event) =>
-                        setCardForm((prev) => ({ ...prev, installments: Number(event.target.value) }))
+                        setCardForm((prev) => ({
+                          ...prev,
+                          installments: Math.min(Math.max(Number(event.target.value), 1), 3),
+                        }))
                       }
-                      disabled={paymentMethod === "debito"}
+                      disabled={paymentMethod === "debito" || !isSecureCardContext}
                       className="h-11 px-3 border border-border bg-background font-body text-sm"
                     >
-                      {Array.from({ length: 12 }, (_, index) => index + 1).map((parcelas) => (
+                      {Array.from({ length: 3 }, (_, index) => index + 1).map((parcelas) => (
                         <option key={parcelas} value={parcelas}>
                           {parcelas}x
                         </option>
@@ -819,6 +1118,8 @@ const Checkout = () => {
                   ? "Processando..."
                   : paymentMethod === "pix"
                     ? "Gerar QR Code PIX"
+                    : (paymentMethod === "credito" || paymentMethod === "debito") && !isSecureCardContext
+                      ? "Ir para pagamento seguro Mercado Pago"
                     : paymentMethod
                       ? "Pagar no site"
                       : "Confirmar Pedido"}

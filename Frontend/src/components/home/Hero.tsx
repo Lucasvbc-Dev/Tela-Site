@@ -1,20 +1,25 @@
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import heroImage from "@/assets/capa.png";
 
 const Hero = () => {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section className="relative h-screen w-full overflow-hidden">
       {/* Background Image */}
       <motion.div
-        initial={{ scale: 1.1 }}
+        initial={reduceMotion ? false : { scale: 1.04 }}
         animate={{ scale: 1 }}
-        transition={{ duration: 1.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+        transition={{ duration: reduceMotion ? 0 : 0.9, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="absolute inset-0"
       >
         <img
           src={heroImage}
           alt="TELA Fashion"
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
           className="w-full h-full object-cover object-top"
         />
         <div className="absolute inset-0 bg-background/10" />
@@ -23,12 +28,12 @@ const Hero = () => {
       {/* Content */}
       <div className="relative h-full container mx-auto px-6 lg:px-12 flex flex-col justify-end pb-24 lg:pb-32">
         <motion.div
-          initial={{ opacity: 0, y: 60 }}
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+          transition={{ duration: reduceMotion ? 0.2 : 0.55, delay: 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
           className="max-w-2xl"
         >
-          <h1 className="display-heading text-[5rem] lg:text-[4.6rem] text-foreground mb-6">
+          <h1 className="display-heading text-[3.5rem] md:text-[4.2rem] lg:text-[4.6rem] text-foreground mb-6 leading-none">
             Menos Excesso
             <br />
             Mais Essência

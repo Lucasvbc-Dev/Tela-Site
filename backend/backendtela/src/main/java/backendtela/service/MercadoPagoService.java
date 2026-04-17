@@ -116,11 +116,13 @@ public class MercadoPagoService {
         body.put("payer", Map.of("email", dto.getEmail()));
         body.put("payment_methods", montarPaymentMethods(dto.getMetodoPagamento()));
 
-        if (isPublicHttpsUrl(frontendUrl)) {
+        String returnUrl = resolverBackUrl(dto.getBackUrl());
+
+        if (isPublicHttpsUrl(returnUrl)) {
             body.put("back_urls", Map.of(
-                "success", construirBackUrl(),
-                "pending", construirBackUrl(),
-                "failure", construirBackUrl()
+                "success", returnUrl,
+                "pending", returnUrl,
+                "failure", returnUrl
             ));
             body.put("auto_return", "approved");
         }
@@ -172,43 +174,36 @@ public class MercadoPagoService {
 
     private Map<String, Object> montarPaymentMethods(String metodoPagamento) {
         String metodo = metodoPagamento == null ? "" : metodoPagamento.trim().toLowerCase();
-        List<Map<String, String>> excludedPaymentTypes;
-
-        switch (metodo) {
-            case "pix" -> {
-            excludedPaymentTypes = List.of(
-                Map.of("id", "credit_card"),
-                Map.of("id", "debit_card"),
-                Map.of("id", "ticket"),
-                Map.of("id", "atm")
-            );
-            return Map.of(
-                "excluded_payment_types", excludedPaymentTypes
-            );
-            }
-            case "credito" -> excludedPaymentTypes = List.of(
-                    Map.of("id", "debit_card"),
-                    Map.of("id", "bank_transfer"),
-                    Map.of("id", "ticket")
-            );
-            case "debito" -> excludedPaymentTypes = List.of(
+        if ("pix".equals(metodo)) {
+            List<Map<String, String>> excludedPaymentTypes = List.of(
                     Map.of("id", "credit_card"),
-                    Map.of("id", "bank_transfer"),
-                    Map.of("id", "ticket")
+                    Map.of("id", "debit_card"),
+                    Map.of("id", "ticket"),
+                    Map.of("id", "atm")
             );
-            default -> {
-                return Map.of();
-            }
+            return Map.of("excluded_payment_types", excludedPaymentTypes);
         }
 
-        return Map.of(
-                "excluded_payment_types", excludedPaymentTypes
-        );
+                List<Map<String, String>> excludedPaymentMethods = List.of(
+                    Map.of("id", "account_money")
+                );
+
+                Map<String, Object> paymentMethods = new HashMap<>();
+                paymentMethods.put("excluded_payment_methods", excludedPaymentMethods);
+                paymentMethods.put("installments", 3);
+                return paymentMethods;
     }
 
     private String construirBackUrl() {
         String base = frontendUrl == null || frontendUrl.isBlank() ? "http://localhost:5173" : frontendUrl.trim();
         return base.endsWith("/") ? base.substring(0, base.length() - 1) + "/checkout/retorno" : base + "/checkout/retorno";
+    }
+
+    private String resolverBackUrl(String backUrlFromRequest) {
+        if (backUrlFromRequest != null && !backUrlFromRequest.isBlank()) {
+            return backUrlFromRequest.trim();
+        }
+        return construirBackUrl();
     }
 
     private String construirNotificationUrl() {

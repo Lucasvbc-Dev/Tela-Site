@@ -35,6 +35,9 @@ const Sobre = () => {
                 <motion.img
                   src={aboutImage}
                   alt="TELA Atelier"
+                  loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
                   className="w-full h-full object-cover"
                   whileHover={{ scale: 1.03 }}
                   transition={{ duration: 0.8 }}
@@ -153,6 +156,9 @@ const Sobre = () => {
                 <motion.img
                   src={heroImage}
                   alt="TELA Fashion"
+                  loading="lazy"
+                  decoding="async"
+                  fetchPriority="low"
                   className="w-full h-full object-cover object-top"
                   whileHover={{ scale: 1.03 }}
                   transition={{ duration: 0.8 }}

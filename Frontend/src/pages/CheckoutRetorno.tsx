@@ -1,16 +1,110 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { CheckCircle, Clock3, XCircle } from "lucide-react";
 import Layout from "@/components/layout/Layout";
+import { pagamentoService } from "@/services/pagamentoService";
+import { supabaseStoreService } from "@/services/supabaseStoreService";
+import { comunicacaoService } from "@/services/comunicacaoService";
+import { useCart } from "@/contexts/CartContext";
+
+const CHECKOUT_PENDING_ORDER_KEY = "checkout_pending_order";
+
+type StatusLocal = "PAGO" | "PENDENTE" | "CANCELADO";
+
+type PendingOrder = {
+  pedidoId: string;
+  nomeCliente: string;
+  emailCliente: string;
+  total: number;
+  endereco?: string;
+  itens: Array<{
+    nome: string;
+    quantidade: number;
+    preco: number;
+  }>;
+};
+
+const mapMercadoPagoStatusToLocal = (status?: string): StatusLocal => {
+  const normalized = (status || "").toLowerCase();
+  if (normalized === "approved") {
+    return "PAGO";
+  }
+  if (normalized === "cancelled" || normalized === "rejected" || normalized === "refunded" || normalized === "failure") {
+    return "CANCELADO";
+  }
+  return "PENDENTE";
+};
 
 const CheckoutRetorno = () => {
   const location = useLocation();
+  const { clearCart } = useCart();
   const params = new URLSearchParams(location.search);
   const status = (params.get("status") || params.get("payment_status") || "pending").toLowerCase();
   const pedidoId = params.get("external_reference") || params.get("pedidoId") || "";
+  const paymentId = params.get("payment_id") || params.get("collection_id") || params.get("paymentId") || "";
 
-  const isApproved = status === "approved" || status === "success";
-  const isRejected = status === "rejected" || status === "cancelled" || status === "failure";
+  const [resolvedStatus, setResolvedStatus] = useState(status);
+
+  useEffect(() => {
+    const syncCheckoutReturn = async () => {
+      if (!pedidoId) {
+        return;
+      }
+
+      try {
+        let statusMercadoPago = status;
+        let transactionId = paymentId;
+
+        if (paymentId) {
+          const payment = await pagamentoService.consultarStatusPagamento(paymentId);
+          if (payment?.status) {
+            statusMercadoPago = payment.status.toLowerCase();
+          }
+          if (!transactionId && payment?.paymentId) {
+            transactionId = payment.paymentId;
+          }
+        }
+
+        setResolvedStatus(statusMercadoPago);
+        const statusLocal = mapMercadoPagoStatusToLocal(statusMercadoPago);
+
+        await supabaseStoreService.atualizarStatusPedidoEPagamento({
+          pedidoId,
+          status: statusLocal,
+          transactionId: transactionId || undefined,
+        });
+
+        if (statusLocal === "PAGO") {
+          clearCart();
+
+          const pendingRaw = localStorage.getItem(CHECKOUT_PENDING_ORDER_KEY);
+          if (pendingRaw) {
+            const pending = JSON.parse(pendingRaw) as PendingOrder;
+            if (pending?.pedidoId === pedidoId && pending.emailCliente) {
+              await comunicacaoService.enviarConfirmacaoPedido({
+                pedidoId: pending.pedidoId,
+                nomeCliente: pending.nomeCliente,
+                emailCliente: pending.emailCliente,
+                total: pending.total,
+                endereco: pending.endereco,
+                itens: pending.itens,
+              });
+            }
+            localStorage.removeItem(CHECKOUT_PENDING_ORDER_KEY);
+          }
+        }
+      } catch (error) {
+        console.error("Falha ao sincronizar retorno do checkout:", error);
+      }
+    };
+
+    void syncCheckoutReturn();
+  }, [pedidoId, paymentId, status, clearCart]);
+
+  const viewStatus = useMemo(() => resolvedStatus || status, [resolvedStatus, status]);
+  const isApproved = viewStatus === "approved" || viewStatus === "success";
+  const isRejected = viewStatus === "rejected" || viewStatus === "cancelled" || viewStatus === "failure";
 
   const icon = isApproved ? CheckCircle : isRejected ? XCircle : Clock3;
   const title = isApproved

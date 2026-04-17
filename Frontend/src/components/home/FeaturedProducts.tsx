@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import AnimatedSection from "../ui/AnimatedSection";
 import { supabaseStoreService, type Produto } from "@/services/supabaseStoreService";
 
@@ -25,6 +25,7 @@ const TARGET_NEW_IN_NAMES = ["new in 1", "new in 4", "new in 6"];
 
 const FeaturedProducts = () => {
   const [products, setProducts] = useState<Produto[]>([]);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const load = async () => {
@@ -78,9 +79,12 @@ const FeaturedProducts = () => {
                   <motion.img
                     src={product.imagemUrl}
                     alt={product.nome}
+                    loading="lazy"
+                    decoding="async"
+                    fetchPriority="low"
                     className="w-full h-full object-cover"
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    whileHover={reduceMotion ? undefined : { scale: 1.03 }}
+                    transition={{ duration: reduceMotion ? 0.2 : 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
                   />
                 </div>
                 <div className="text-center">

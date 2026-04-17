@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User, ShoppingBag } from "lucide-react";
+import { Menu, X, User, ShoppingBag, House, Circle, MenuSquare, Mail, Shield, LogIn, LogOut, UserCircle2, ReceiptText } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -35,6 +35,13 @@ const Header = () => {
     { to: "/catalogo", label: "Menu" },
     { to: "/sobre", label: "Sobre" },
     { to: "/contato", label: "Contato" },
+  ];
+
+  const mobileActions = [
+    { to: "/", label: "Início", icon: House },
+    { to: "/catalogo", label: "Menu", icon: MenuSquare },
+    { to: "/sobre", label: "Sobre", icon: Circle },
+    { to: "/contato", label: "Contato", icon: Mail },
   ];
 
   return (
@@ -179,30 +186,108 @@ const Header = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-40 bg-background lg:hidden"
+            className="fixed inset-0 z-40 bg-background/95 backdrop-blur-sm lg:hidden overflow-y-auto"
           >
             <motion.nav
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.4, delay: 0.1 }}
-              className="flex flex-col items-center justify-center h-full space-y-8"
+              className="min-h-screen flex flex-col justify-between px-6 py-6"
             >
-              {navLinks.map((link, index) => (
-                <motion.div
-                  key={link.to}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.1 + index * 0.1 }}
+              <div className="flex items-center justify-between mb-8">
+                <span className="font-display text-2xl tracking-[0.25em]">TELA</span>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 text-foreground"
+                  aria-label="Fechar menu"
                 >
-                  <Link
-                    to={link.to}
-                    className="font-display text-4xl tracking-widest text-foreground hover:text-foreground/60 transition-colors duration-300"
+                  <X size={22} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {mobileActions.map((link, index) => (
+                  <motion.div
+                    key={link.to}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: 0.05 + index * 0.05 }}
                   >
-                    {link.label}
+                    <Link
+                      to={link.to}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-xl border border-border px-4 py-4 text-foreground bg-background/60"
+                    >
+                      <link.icon size={18} className="shrink-0" />
+                      <span className="font-body text-base tracking-wide">{link.label}</span>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="mt-8 space-y-4 border-t border-border pt-6">
+                <button
+                  onClick={() => {
+                    setIsCartOpen(true);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl border border-border px-4 py-4"
+                >
+                  <span className="flex items-center gap-3">
+                    <ShoppingBag size={18} />
+                    <span className="font-body text-base">Sacola</span>
+                  </span>
+                  {totalItems > 0 && <span className="text-xs uppercase tracking-wider">{totalItems}</span>}
+                </button>
+
+                {!usuario ? (
+                  <Link
+                    to="/auth"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex w-full items-center gap-3 rounded-xl bg-foreground px-4 py-4 text-background"
+                  >
+                    <LogIn size={18} />
+                    <span className="font-body text-base">Entrar / Criar conta</span>
                   </Link>
-                </motion.div>
-              ))}
+                ) : (
+                  <div className="space-y-3">
+                    <Link
+                      to="/minha-conta"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-4"
+                    >
+                      <UserCircle2 size={18} />
+                      <span className="font-body text-base">Minha conta</span>
+                    </Link>
+                    <Link
+                      to="/meus-pedidos"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-4"
+                    >
+                      <ReceiptText size={18} />
+                      <span className="font-body text-base">Meus pedidos</span>
+                    </Link>
+                    {usuario?.isAdm && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-4"
+                      >
+                        <Shield size={18} />
+                        <span className="font-body text-base">Painel Admin</span>
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-4 text-destructive"
+                    >
+                      <LogOut size={18} />
+                      <span className="font-body text-base">Sair</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </motion.nav>
           </motion.div>
         )}

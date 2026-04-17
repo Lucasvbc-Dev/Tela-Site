@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.text.Normalizer;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -56,6 +57,17 @@ public class FreteService {
         String cepDestino = limparCep(request.getCepDestino());
         if (cepDestino.length() != 8) {
             throw new IllegalArgumentException("CEP de destino invalido. Informe 8 digitos.");
+        }
+
+        String cidadeDestino = normalizarTexto(request.getCidadeDestino());
+        String estadoDestino = normalizarTexto(request.getEstadoDestino());
+
+        if (ehFortaleza(cidadeDestino, estadoDestino)) {
+            return new FreteCalculoResponseDTO(cepDestino, calcularFreteFortalezaGratis());
+        }
+
+        if (ehRegiaoMetropolitanaFortaleza(cidadeDestino, estadoDestino)) {
+            return new FreteCalculoResponseDTO(cepDestino, calcularFreteRegiaoMetropolitana());
         }
 
         if (melhorEnvioToken == null || melhorEnvioToken.isBlank()) {
@@ -177,6 +189,32 @@ public class FreteService {
         }
     }
 
+    private List<FreteOpcaoResponseDTO> calcularFreteFortalezaGratis() {
+        List<FreteOpcaoResponseDTO> opcoes = new ArrayList<>();
+        opcoes.add(new FreteOpcaoResponseDTO(
+                "fortaleza-gratis",
+                "Entrega local",
+                "Tela",
+                BigDecimal.ZERO,
+                1,
+                "BRL",
+                null));
+        return opcoes;
+    }
+
+    private List<FreteOpcaoResponseDTO> calcularFreteRegiaoMetropolitana() {
+        List<FreteOpcaoResponseDTO> opcoes = new ArrayList<>();
+        opcoes.add(new FreteOpcaoResponseDTO(
+                "rmf-15",
+                "Entrega regional",
+                "Tela",
+                new BigDecimal("15.00"),
+                2,
+                "BRL",
+                null));
+        return opcoes;
+    }
+
     private FreteCalculoResponseDTO calcularFreteSimulado(String cepDestino) {
         List<FreteOpcaoResponseDTO> opcoes = new ArrayList<>();
         opcoes.add(new FreteOpcaoResponseDTO(
@@ -196,6 +234,51 @@ public class FreteService {
                 "BRL",
                 null));
         return new FreteCalculoResponseDTO(cepDestino, opcoes);
+    }
+
+    private boolean ehFortaleza(String cidade, String estado) {
+        return "fortaleza".equals(normalizarTexto(cidade))
+                || ("fortaleza".equals(normalizarTexto(cidade)) && estado.equals("ce"));
+    }
+
+    private boolean ehRegiaoMetropolitanaFortaleza(String cidade, String estado) {
+        String cidadeNormalizada = normalizarTexto(cidade);
+        String estadoNormalizado = normalizarTexto(estado);
+
+        if (!"ce".equals(estadoNormalizado) && !estadoNormalizado.isBlank()) {
+            return false;
+        }
+
+        return List.of(
+                "eusebio",
+                "eusebio ce",
+                "maracanau",
+                "maracanau ce",
+                "caucaia",
+                "caucaia ce",
+                "maranguape",
+                "maranguape ce",
+                "pacatuba",
+                "pacatuba ce",
+                "aquiraz",
+                "aquiraz ce",
+                "itaitinga",
+                "itaitinga ce",
+                "horizonte",
+                "horizonte ce",
+                "chorozinho",
+                "chorozinho ce"
+        ).contains(cidadeNormalizada);
+    }
+
+    private String normalizarTexto(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "");
+        return normalized.trim().toLowerCase();
     }
 
     private String limparCep(String value) {

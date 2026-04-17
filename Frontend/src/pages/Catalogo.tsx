@@ -322,6 +322,9 @@ const Catalogo = () => {
                           key={getProductImages(product)[getCardImageIndex(product)] || product.id}
                           src={getProductImages(product)[getCardImageIndex(product)] || ""}
                           alt={product.nome}
+                          loading="lazy"
+                          decoding="async"
+                          fetchPriority="low"
                           className="absolute inset-0 w-full h-full object-cover"
                           initial={{ opacity: 0, scale: 1.01 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -394,6 +397,9 @@ const Catalogo = () => {
                   key={getProductImages(selected)[selectedImageIndex] || selected.groupId}
                   src={getProductImages(selected)[selectedImageIndex] || selected.imagemUrl}
                   alt={selected.nome}
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
                   className="absolute inset-0 w-full h-full object-contain"
                   initial={{ opacity: 0, scale: 1.01 }}
                   animate={{ opacity: 1, scale: 1 }}

@@ -17,6 +17,10 @@ public class FreteCalculoRequestDTO {
     @NotBlank(message = "CEP de destino e obrigatorio")
     private String cepDestino;
 
+    private String cidadeDestino;
+
+    private String estadoDestino;
+
     @Valid
     @NotEmpty(message = "Pelo menos um item e obrigatorio para calcular o frete")
     private List<FreteCalculoItemDTO> itens;

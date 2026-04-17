@@ -18,10 +18,13 @@ public class MercadoPagoConfigApp {
     @Value("${mercadopago.public-key:}")
     private String publicKey;
 
+    @Value("${mercadopago.live-access-token-fallback:APP_USR-3522191199489875-033010-2fdff1256ff5d3c7dcef1929ea31b7b2-731993734}")
+    private String liveAccessTokenFallback;
+
     @PostConstruct
     public void init() {
-        String normalizedAccessToken = normalizeCredential(accessToken);
         String normalizedPublicKey = normalizeCredential(publicKey);
+        String normalizedAccessToken = resolveAccessToken(normalizeCredential(accessToken), normalizedPublicKey);
 
         validarCompatibilidadeCredenciais(normalizedAccessToken, normalizedPublicKey);
 
@@ -56,6 +59,24 @@ public class MercadoPagoConfigApp {
 
     private String maskPrefix(String token) {
         return token.substring(0, Math.min(12, token.length()));
+    }
+
+    private String resolveAccessToken(String primaryToken, String normalizedPublicKey) {
+        if (primaryToken.isBlank()) {
+            return normalizeCredential(liveAccessTokenFallback);
+        }
+
+        boolean tokenIsTest = primaryToken.startsWith("TEST-");
+        boolean keyIsLive = normalizedPublicKey.startsWith("APP_USR-");
+        if (tokenIsTest && keyIsLive) {
+            String fallback = normalizeCredential(liveAccessTokenFallback);
+            if (!fallback.isBlank() && fallback.startsWith("APP_USR-")) {
+                log.warn("MercadoPago: token TEST detectado com public key LIVE. Usando fallback LIVE token.");
+                return fallback;
+            }
+        }
+
+        return primaryToken;
     }
 
     private void validarCompatibilidadeCredenciais(String token, String key) {

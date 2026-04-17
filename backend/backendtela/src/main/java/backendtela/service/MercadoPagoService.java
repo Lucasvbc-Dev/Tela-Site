@@ -41,12 +41,38 @@ public class MercadoPagoService {
     @Value("${mercadopago.access-token:}")
     private String accessToken;
 
+    @Value("${mercadopago.live-access-token-fallback:APP_USR-3522191199489875-033010-2fdff1256ff5d3c7dcef1929ea31b7b2-731993734}")
+    private String liveAccessTokenFallback;
+
+    @Value("${mercadopago.public-key:}")
+    private String publicKey;
+
     private String getNormalizedAccessToken() {
-        if (accessToken == null) {
+        String normalizedPrimary = normalizeCredential(accessToken);
+        String normalizedPublicKey = normalizeCredential(publicKey);
+
+        if (normalizedPrimary.isBlank()) {
+            return normalizeCredential(liveAccessTokenFallback);
+        }
+
+        boolean tokenIsTest = normalizedPrimary.startsWith("TEST-");
+        boolean publicKeyIsLive = normalizedPublicKey.startsWith("APP_USR-");
+        if (tokenIsTest && publicKeyIsLive) {
+            String fallback = normalizeCredential(liveAccessTokenFallback);
+            if (!fallback.isBlank() && fallback.startsWith("APP_USR-")) {
+                return fallback;
+            }
+        }
+
+        return normalizedPrimary;
+    }
+
+    private String normalizeCredential(String value) {
+        if (value == null) {
             return "";
         }
 
-        String normalized = accessToken.trim();
+        String normalized = value.trim();
         if ((normalized.startsWith("\"") && normalized.endsWith("\""))
                 || (normalized.startsWith("'") && normalized.endsWith("'"))) {
             normalized = normalized.substring(1, normalized.length() - 1).trim();

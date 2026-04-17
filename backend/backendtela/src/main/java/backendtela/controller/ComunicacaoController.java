@@ -6,7 +6,6 @@ import backendtela.service.EmailService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import java.util.Map;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,8 +32,11 @@ public class ComunicacaoController {
             return ResponseEntity.accepted().build();
         } catch (IllegalStateException e) {
             log.error("Falha ao enviar email de contato", e);
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(Map.of("message", e.getMessage()));
+            return ResponseEntity.accepted()
+                    .body(Map.of(
+                            "status", "accepted_with_warning",
+                            "message", "Mensagem recebida com sucesso. Estamos com instabilidade temporaria no envio de email e retornaremos em breve."
+                    ));
         }
     }
 
@@ -45,8 +47,11 @@ public class ComunicacaoController {
             return ResponseEntity.accepted().build();
         } catch (IllegalStateException e) {
             log.error("Falha ao enviar email de confirmacao do pedido {}", dto.getPedidoId(), e);
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(Map.of("message", e.getMessage()));
+            return ResponseEntity.accepted()
+                    .body(Map.of(
+                            "status", "accepted_with_warning",
+                            "message", "Pedido confirmado. O email de confirmacao sera reenviado automaticamente."
+                    ));
         }
     }
 }

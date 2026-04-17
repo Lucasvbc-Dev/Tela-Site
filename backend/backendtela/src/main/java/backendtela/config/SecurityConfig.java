@@ -1,7 +1,9 @@
 package backendtela.config;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -34,6 +36,7 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                    .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/usuarios", "/usuarios/login").permitAll()
                     .requestMatchers(HttpMethod.GET, "/pagamentos/*/status").permitAll()
                     .requestMatchers(HttpMethod.POST,
@@ -61,10 +64,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.stream(allowedOrigins.split(","))
+        Set<String> originPatterns = new LinkedHashSet<>(Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
-                .toList());
+            .toList());
+        originPatterns.add("https://www.telaoficial.com.br");
+        originPatterns.add("https://telaoficial.com.br");
+
+        configuration.setAllowedOriginPatterns(List.copyOf(originPatterns));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

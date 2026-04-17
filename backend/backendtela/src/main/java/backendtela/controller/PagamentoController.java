@@ -73,7 +73,7 @@ public class PagamentoController {
      * Suporta parcelamento de 1 a 12 vezes.
      */
     @PostMapping("/cartao")
-    public ResponseEntity<Payment> pagarCartao(@Valid @RequestBody PagamentoCartaoDTO dto) {
+    public ResponseEntity<?> pagarCartao(@Valid @RequestBody PagamentoCartaoDTO dto) {
         try {
             log.info("Processando pagamento com cartão para pedido: {} - Valor: {} - Parcelas: {}", 
                     dto.getPedidoId(), dto.getValor(), dto.getInstallments());
@@ -81,10 +81,16 @@ public class PagamentoController {
             return ResponseEntity.status(HttpStatus.CREATED).body(payment);
         } catch (IllegalStateException e) {
             log.error("Erro de configuração de MercadoPago: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).body(null);
+            if (e.getMessage() != null && e.getMessage().contains("HTTP 401")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("message", "Credenciais Mercado Pago inválidas para cartão (live). Use token/public key válidos do mesmo app/conta."));
+            }
+            return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED)
+                    .body(Map.of("message", e.getMessage() == null ? "Erro de configuração do Mercado Pago" : e.getMessage()));
         } catch (Exception e) {
             log.error("Erro ao processar pagamento com cartão", e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage() == null ? "Erro ao processar pagamento com cartão" : e.getMessage()));
         }
     }
 

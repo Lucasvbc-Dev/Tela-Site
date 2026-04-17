@@ -40,6 +40,19 @@ public class MercadoPagoService {
     @Value("${mercadopago.access-token:}")
     private String accessToken;
 
+    private String getNormalizedAccessToken() {
+        if (accessToken == null) {
+            return "";
+        }
+
+        String normalized = accessToken.trim();
+        if ((normalized.startsWith("\"") && normalized.endsWith("\""))
+                || (normalized.startsWith("'") && normalized.endsWith("'"))) {
+            normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        return normalized;
+    }
+
     // 🔹 PIX
     public Payment criarPagamentoPix(CriarPagamentoDTO dto) throws Exception {
         validarConfiguracao();
@@ -134,7 +147,7 @@ public class MercadoPagoService {
         try {
             Map<?, ?> response = RestClient.builder()
                     .baseUrl(baseUrl)
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.trim())
+                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + getNormalizedAccessToken())
                     .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .build()
                     .post()
@@ -158,7 +171,7 @@ public class MercadoPagoService {
     }
 
     private void validarConfiguracao() {
-        if (accessToken == null || accessToken.isBlank()) {
+        if (getNormalizedAccessToken().isBlank()) {
             throw new IllegalStateException("Mercado Pago nao configurado. Defina mercadopago.access-token.");
         }
     }
@@ -221,7 +234,7 @@ public class MercadoPagoService {
         try {
             Map<?, ?> response = RestClient.builder()
                     .baseUrl(baseUrl)
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken.trim())
+                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + getNormalizedAccessToken())
                     .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .build()
                     .post()

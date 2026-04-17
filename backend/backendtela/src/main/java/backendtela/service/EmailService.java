@@ -1,7 +1,7 @@
 package backendtela.service;
 
-import java.nio.charset.StandardCharsets;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -76,9 +76,24 @@ public class EmailService {
             mailSender.send(message);
         } catch (MailException | jakarta.mail.MessagingException | UnsupportedEncodingException e) {
             String detalhe = e.getMessage() == null ? "" : e.getMessage();
-            if (detalhe.toLowerCase().contains("authentication") || detalhe.toLowerCase().contains("no password specified")) {
+            String detalheLower = detalhe.toLowerCase();
+
+            if (detalheLower.contains("authentication")
+                    || detalheLower.contains("auth")
+                    || detalheLower.contains("username and password not accepted")
+                    || detalheLower.contains("535")
+                    || detalheLower.contains("no password specified")) {
                 throw new IllegalStateException("Falha de autenticacao SMTP. Configure SMTP_USERNAME e SMTP_PASSWORD (senha de app).", e);
             }
+
+            if (detalheLower.contains("could not connect")
+                    || detalheLower.contains("connection refused")
+                    || detalheLower.contains("connect timed out")
+                    || detalheLower.contains("timed out")
+                    || detalheLower.contains("unknownhost")) {
+                throw new IllegalStateException("Falha de conexao SMTP. Verifique SMTP_HOST, SMTP_PORT e acesso de rede do deploy.", e);
+            }
+
             throw new IllegalStateException("Nao foi possivel enviar o e-mail. Verifique as configuracoes SMTP.", e);
         }
     }

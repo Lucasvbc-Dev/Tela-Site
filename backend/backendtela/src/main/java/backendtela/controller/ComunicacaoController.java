@@ -37,6 +37,13 @@ public class ComunicacaoController {
                             "status", "accepted_with_warning",
                             "message", "Mensagem recebida com sucesso. Estamos com instabilidade temporaria no envio de email e retornaremos em breve."
                     ));
+        } catch (Exception e) {
+            log.error("Erro inesperado no contato", e);
+            return ResponseEntity.accepted()
+                .body(Map.of(
+                    "status", "accepted_with_warning",
+                    "message", "Mensagem recebida com sucesso. Estamos com instabilidade temporaria no envio de email e retornaremos em breve."
+                ));
         }
     }
 
@@ -47,6 +54,13 @@ public class ComunicacaoController {
             return ResponseEntity.accepted().build();
         } catch (IllegalStateException e) {
             log.error("Falha ao enviar email de confirmacao do pedido {}", dto.getPedidoId(), e);
+            return ResponseEntity.accepted()
+                    .body(Map.of(
+                            "status", "accepted_with_warning",
+                            "message", "Pedido confirmado. O email de confirmacao sera reenviado automaticamente."
+                    ));
+        } catch (Exception e) {
+            log.error("Erro inesperado no envio de confirmacao do pedido {}", dto.getPedidoId(), e);
             return ResponseEntity.accepted()
                     .body(Map.of(
                             "status", "accepted_with_warning",

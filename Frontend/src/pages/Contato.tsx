@@ -15,33 +15,97 @@ const Contato = () => {
     subject: "",
     message: "",
   });
+  const [formErrors, setFormErrors] = useState({
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
+  });
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateForm = (): boolean => {
+    const errors = {
+      name: "",
+      email: "",
+      subject: "",
+      message: "",
+    };
+
+    if (!formData.name.trim()) {
+      errors.name = "Nome é obrigatório";
+    } else if (formData.name.trim().length < 3) {
+      errors.name = "Nome deve ter pelo menos 3 caracteres";
+    }
+
+    if (!formData.email.trim()) {
+      errors.email = "E-mail é obrigatório";
+    } else if (!validateEmail(formData.email)) {
+      errors.email = "E-mail inválido";
+    }
+
+    if (!formData.subject) {
+      errors.subject = "Assunto é obrigatório";
+    }
+
+    if (!formData.message.trim()) {
+      errors.message = "Mensagem é obrigatória";
+    } else if (formData.message.trim().length < 10) {
+      errors.message = "Mensagem deve ter pelo menos 10 caracteres";
+    }
+
+    setFormErrors(errors);
+    return !Object.values(errors).some(error => error !== "");
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    
+    // Limpar erro ao usuário começar a digitar
+    if (formErrors[name as keyof typeof formErrors]) {
+      setFormErrors({ ...formErrors, [name]: "" });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!validateForm()) {
+      toast({
+        title: "Formulário incompleto",
+        description: "Por favor, corrija os erros abaixo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsSending(true);
       await comunicacaoService.enviarContato({
-        nome: formData.name,
-        email: formData.email,
+        nome: formData.name.trim(),
+        email: formData.email.trim(),
         assunto: formData.subject,
-        mensagem: formData.message,
+        mensagem: formData.message.trim(),
       });
       setIsSubmitted(true);
       setFormData({ name: "", email: "", subject: "", message: "" });
-      toast({ title: "Mensagem enviada", description: "Sua mensagem foi encaminhada para a loja." });
+      setFormErrors({ name: "", email: "", subject: "", message: "" });
+      toast({ 
+        title: "Mensagem enviada!", 
+        description: "Sua mensagem foi encaminhada para a loja. Responderemos em breve!" 
+      });
     } catch (error: any) {
       toast({
         title: "Erro ao enviar mensagem",
-        description: error?.message || "Não foi possível enviar sua mensagem agora.",
+        description: error?.message || "Não foi possível enviar sua mensagem agora. Tente novamente mais tarde.",
         variant: "destructive",
       });
     } finally {
@@ -50,11 +114,6 @@ const Contato = () => {
   };
 
   const contactInfo = [
-    {
-      icon: MapPin,
-      title: "Endereço",
-      details: ["Rua Leonardo Mota, 1234", "Fortaleza, CE, Brasil"],
-    },
     {
       icon: Phone,
       title: "Telefone",
@@ -172,9 +231,16 @@ const Contato = () => {
                         name="name"
                         value={formData.name}
                         onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 bg-background border border-border font-body text-sm focus:outline-none focus:border-foreground transition-colors duration-300"
+                        className={`w-full px-4 py-3 bg-background border font-body text-sm focus:outline-none transition-colors duration-300 ${
+                          formErrors.name 
+                            ? "border-red-500 focus:border-red-600" 
+                            : "border-border focus:border-foreground"
+                        }`}
+                        placeholder="Seu nome completo"
                       />
+                      {formErrors.name && (
+                        <p className="text-red-500 font-body text-xs mt-1">{formErrors.name}</p>
+                      )}
                     </div>
 
                     <div>
@@ -186,9 +252,16 @@ const Contato = () => {
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 bg-background border border-border font-body text-sm focus:outline-none focus:border-foreground transition-colors duration-300"
+                        className={`w-full px-4 py-3 bg-background border font-body text-sm focus:outline-none transition-colors duration-300 ${
+                          formErrors.email 
+                            ? "border-red-500 focus:border-red-600" 
+                            : "border-border focus:border-foreground"
+                        }`}
+                        placeholder="seu@email.com"
                       />
+                      {formErrors.email && (
+                        <p className="text-red-500 font-body text-xs mt-1">{formErrors.email}</p>
+                      )}
                     </div>
 
                     <div>
@@ -199,15 +272,22 @@ const Contato = () => {
                         name="subject"
                         value={formData.subject}
                         onChange={handleChange}
-                        required
-                        className="w-full px-4 py-3 bg-background border border-border font-body text-sm focus:outline-none focus:border-foreground transition-colors duration-300"
+                        className={`w-full px-4 py-3 bg-background border font-body text-sm focus:outline-none transition-colors duration-300 ${
+                          formErrors.subject 
+                            ? "border-red-500 focus:border-red-600" 
+                            : "border-border focus:border-foreground"
+                        }`}
                       >
-                        <option value="">Selecione</option>
-                        <option value="produtos">Dúvidas sobre Produtos</option>
-                        <option value="pedidos">Pedidos e Entregas</option>
-                        <option value="parcerias">Parcerias</option>
-                        <option value="outros">Outros</option>
+                        <option value="">Selecione um assunto</option>
+                        <option value="Dúvidas sobre Produtos">Dúvidas sobre Produtos</option>
+                        <option value="Pedidos e Entregas">Pedidos e Entregas</option>
+                        <option value="Reclamações e Sugestões">Reclamações e Sugestões</option>
+                        <option value="Parcerias">Parcerias</option>
+                        <option value="Outros">Outros</option>
                       </select>
+                      {formErrors.subject && (
+                        <p className="text-red-500 font-body text-xs mt-1">{formErrors.subject}</p>
+                      )}
                     </div>
 
                     <div>
@@ -218,10 +298,22 @@ const Contato = () => {
                         name="message"
                         value={formData.message}
                         onChange={handleChange}
-                        required
                         rows={5}
-                        className="w-full px-4 py-3 bg-background border border-border font-body text-sm focus:outline-none focus:border-foreground transition-colors duration-300 resize-none"
+                        className={`w-full px-4 py-3 bg-background border font-body text-sm focus:outline-none transition-colors duration-300 resize-none ${
+                          formErrors.message 
+                            ? "border-red-500 focus:border-red-600" 
+                            : "border-border focus:border-foreground"
+                        }`}
+                        placeholder="Digite sua mensagem aqui... (mínimo 10 caracteres)"
                       />
+                      <div className="flex justify-between items-center mt-1">
+                        {formErrors.message && (
+                          <p className="text-red-500 font-body text-xs">{formErrors.message}</p>
+                        )}
+                        <p className="text-muted-foreground font-body text-xs ml-auto">
+                          {formData.message.length}/500
+                        </p>
+                      </div>
                     </div>
 
                     <motion.button
@@ -229,9 +321,19 @@ const Contato = () => {
                       disabled={isSending}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full px-8 py-4 bg-foreground text-background font-body text-sm tracking-wider uppercase hover:bg-foreground/90 transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full px-8 py-4 bg-foreground text-background font-body text-sm tracking-wider uppercase hover:bg-foreground/90 transition-colors duration-300 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                      {isSending ? "Enviando..." : "Enviar Mensagem"}
+                      {isSending ? (
+                        <>
+                          <span className="inline-block animate-spin">⏳</span>
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Send size={16} />
+                          Enviar Mensagem
+                        </>
+                      )}
                     </motion.button>
                   </form>
                 )}

@@ -42,6 +42,7 @@ public class SecurityConfig {
                         "/pagamentos/cartao",
                         "/pagamentos/webhook",
                         "/pagamentos/*/reembolso",
+                        "/fretes/calcular",
                         "/comunicacao/**",
                         "/webhook")
                     .permitAll()

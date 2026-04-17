@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { supabaseStoreService } from "@/services/supabaseStoreService";
 import { pagamentoService } from "@/services/pagamentoService";
 import { comunicacaoService } from "@/services/comunicacaoService";
+import { freteService, type FreteOpcao } from "@/services/freteService";
 
 type PaymentMethod = "credito" | "debito" | "pix" | null;
 
@@ -77,6 +78,9 @@ const Checkout = () => {
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
   const [frete, setFrete] = useState(0);
+  const [freteOpcoes, setFreteOpcoes] = useState<FreteOpcao[]>([]);
+  const [freteSelecionadoId, setFreteSelecionadoId] = useState("");
+  const [isCalculandoFrete, setIsCalculandoFrete] = useState(false);
   const [orderConfirmation, setOrderConfirmation] = useState<OrderConfirmationState | null>(null);
   const [confirmationSent, setConfirmationSent] = useState(false);
   const [confirmationAttempted, setConfirmationAttempted] = useState(false);
@@ -86,6 +90,74 @@ const Checkout = () => {
   const isPixSelected = paymentMethod === "pix";
   const formatPrice = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
+
+  const handleCalcularFrete = async () => {
+    const cepLimpo = cep.replace(/\D/g, "");
+
+    if (cepLimpo.length !== 8) {
+      toast({
+        title: "CEP inválido",
+        description: "Informe um CEP com 8 dígitos para calcular o frete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!items.length) {
+      toast({
+        title: "Carrinho vazio",
+        description: "Adicione itens antes de calcular o frete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsCalculandoFrete(true);
+      const response = await freteService.calcularFrete({
+        cepDestino: cepLimpo,
+        itens: items.map((item) => ({
+          nome: item.name,
+          quantidade: item.quantity,
+          preco: Number(item.price.toFixed(2)),
+        })),
+      });
+
+      const opcoesValidas = response.opcoes.filter((opcao) => !opcao.erro && typeof opcao.valor === "number");
+      setFreteOpcoes(response.opcoes);
+
+      if (!opcoesValidas.length) {
+        setFrete(0);
+        setFreteSelecionadoId("");
+        toast({
+          title: "Sem opções de frete",
+          description: "Não encontramos opções válidas para esse CEP.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const opcaoMaisBarata = [...opcoesValidas].sort((a, b) => a.valor - b.valor)[0];
+      setFreteSelecionadoId(opcaoMaisBarata.id);
+      setFrete(opcaoMaisBarata.valor);
+
+      toast({
+        title: "Frete calculado",
+        description: `${opcoesValidas.length} opção(ões) encontrada(s) para o CEP informado.`,
+      });
+    } catch (error: any) {
+      setFreteOpcoes([]);
+      setFreteSelecionadoId("");
+      setFrete(0);
+      toast({
+        title: "Erro ao calcular frete",
+        description: error?.message || "Não foi possível calcular o frete no momento.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCalculandoFrete(false);
+    }
+  };
 
   const handlePlaceOrder = async () => {
     if (!paymentMethod) {
@@ -107,6 +179,15 @@ const Checkout = () => {
       toast({
         title: "Endereço incompleto",
         description: "Preencha endereço, CEP, cidade e estado para continuar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!freteSelecionadoId) {
+      toast({
+        title: "Calcule o frete",
+        description: "Calcule e selecione uma opção de frete para continuar.",
         variant: "destructive",
       });
       return;
@@ -505,7 +586,12 @@ const Checkout = () => {
                 />
                 <input
                   value={cep}
-                  onChange={(e) => setCep(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                  onChange={(e) => {
+                    setCep(e.target.value.replace(/\D/g, "").slice(0, 8));
+                    setFrete(0);
+                    setFreteOpcoes([]);
+                    setFreteSelecionadoId("");
+                  }}
                   placeholder="CEP (00000-000)"
                   className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
                 />
@@ -550,13 +636,44 @@ const Checkout = () => {
                     <option value="TO">TO</option>
                   </select>
                 </div>
-                <input
-                  value={frete}
-                  onChange={(e) => setFrete(Number(e.target.value) || 0)}
-                  placeholder="Frete (R$)"
-                  inputMode="decimal"
-                  className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
-                />
+                <button
+                  onClick={handleCalcularFrete}
+                  disabled={isCalculandoFrete}
+                  type="button"
+                  className="w-full h-11 px-4 border border-border bg-secondary/30 font-body text-xs tracking-wider uppercase hover:bg-secondary/50 transition-colors disabled:opacity-60"
+                >
+                  {isCalculandoFrete ? "Calculando frete..." : "Calcular frete com Melhor Envio"}
+                </button>
+
+                {freteOpcoes.length > 0 && (
+                  <select
+                    value={freteSelecionadoId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setFreteSelecionadoId(selectedId);
+                      const opcao = freteOpcoes.find((item) => item.id === selectedId);
+                      if (opcao && !opcao.erro && typeof opcao.valor === "number") {
+                        setFrete(opcao.valor);
+                      }
+                    }}
+                    className="w-full h-11 px-3 border border-border bg-background font-body text-sm"
+                  >
+                    <option value="">Selecione a opção de frete</option>
+                    {freteOpcoes.map((opcao) => (
+                      <option key={opcao.id} value={opcao.id} disabled={Boolean(opcao.erro)}>
+                        {opcao.transportadora} - {opcao.nome}
+                        {opcao.erro
+                          ? ` (indisponível: ${opcao.erro})`
+                          : ` (${formatPrice(opcao.valor)}${opcao.prazoDias ? ` | ${opcao.prazoDias} dia(s)` : ""})`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <div className="flex justify-between items-center rounded-md border border-border bg-secondary/20 p-3">
+                  <span className="font-body text-xs tracking-wider uppercase text-muted-foreground">Frete selecionado</span>
+                  <span className="font-display text-lg text-foreground">{formatPrice(frete)}</span>
+                </div>
               </div>
 
               <h2 className="font-display text-2xl tracking-wide text-foreground mb-6 pb-4 border-b border-border">

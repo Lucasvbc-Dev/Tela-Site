@@ -6,7 +6,7 @@ const Footer = () => {
   return (
     <footer className="bg-foreground text-primary-foreground">
       <div className="container mx-auto px-6 lg:px-12 py-16 lg:py-24">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 lg:gap-8">
           {/* Brand */}
           <div className="lg:col-span-1">
             <Link to="/" className="block mb-6">
@@ -48,33 +48,6 @@ const Footer = () => {
               <p>tela.contato123@gmail.com</p>
               <p>(85) 8989-1444</p>
               <p>Fortaleza, CE</p>
-            </div>
-          </div>
-
-          {/* Social */}
-          <div>
-            <h4 className="font-display text-lg tracking-wider mb-6">Redes Sociais</h4>
-            <div className="flex space-x-4">
-              <motion.a
-                href="https://instagram.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-10 h-10 border border-primary-foreground/20 flex items-center justify-center hover:bg-primary-foreground hover:text-foreground transition-colors duration-300"
-              >
-                <Instagram size={18} />
-              </motion.a>
-              <motion.a
-                href="https://facebook.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-10 h-10 border border-primary-foreground/20 flex items-center justify-center hover:bg-primary-foreground hover:text-foreground transition-colors duration-300"
-              >
-                <Facebook size={18} />
-              </motion.a>
             </div>
           </div>
         </div>
